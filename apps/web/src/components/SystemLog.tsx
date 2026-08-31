@@ -1,13 +1,15 @@
 import { SUITS, SUIT_NAME } from "@fdp/shared";
-import { SUIT_HEX } from "../lib/cards";
+import { SUIT_ON_SLAB } from "../lib/cards";
 
 /**
  * Toda linha do log fala de cartas, e carta se identifica pelo naipe: "dama de
  * copas", "ás de paus". Pintar a palavra é o que deixa a história legível de
  * relance — o log continua sendo texto puro no servidor, e é aqui, na leitura,
  * que a tinta volta a existir.
+ *
+ * A tinta é a da CHAPA, e não a da carta: ver `SUIT_ON_SLAB`.
  */
-const HEX_BY_NAME = new Map(SUITS.map((suit) => [SUIT_NAME[suit], SUIT_HEX[suit]]));
+const HEX_BY_NAME = new Map(SUITS.map((suit) => [SUIT_NAME[suit], SUIT_ON_SLAB[suit]]));
 const SUIT_WORD = new RegExp(`(${[...HEX_BY_NAME.keys()].join("|")})`, "g");
 
 export function SystemLog({ messages }: { messages: string[] }) {

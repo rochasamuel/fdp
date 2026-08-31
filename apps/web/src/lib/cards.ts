@@ -43,10 +43,21 @@ export const isBack = (value: unknown): value is Back =>
 
 export const backUrl = (back: Back) => `/cards/svg/fdp-back-${back}.svg`;
 
-/** A tinta de cada naipe, na mesma divisão que o baralho imprime. */
-export const SUIT_HEX: Record<Suit | "joker", string> = {
-  spades: "var(--ink-black)",
-  clubs: "var(--ink-black)",
+/**
+ * A tinta de cada naipe FORA da carta: no log, no assento, em qualquer texto
+ * que fale de carta sobre a chapa escura.
+ *
+ * O vermelho é o mesmo do baralho, que lê bem sobre o escuro. O preto não é:
+ * `--ink-black` (#2a2126) é vizinho do `--slab` (#241e26), e espadas e paus
+ * saíam apagadas, invisíveis contra o próprio painel. Sobre a chapa, o papel é
+ * que faz o papel do preto — a divisão continua sendo a mesma do baralho, uma
+ * cor para as duas tintas, só que lida do lado escuro.
+ *
+ * A tinta impressa não mora aqui: a carta é um SVG, e ela vem pronta.
+ */
+export const SUIT_ON_SLAB: Record<Suit | "joker", string> = {
+  spades: "var(--paper-hi)",
+  clubs: "var(--paper-hi)",
   hearts: "var(--ink-red)",
   diamonds: "var(--ink-red)",
   joker: "var(--mark)",
@@ -54,8 +65,8 @@ export const SUIT_HEX: Record<Suit | "joker", string> = {
 
 export const suitPip = (suit: Suit | "joker") => SUIT_PIP[suit];
 
-export const cardHex = (card: Pick<Card, "suit" | "rank">) =>
-  isRed(card) ? "var(--ink-red)" : SUIT_HEX[card.suit];
+export const cardOnSlab = (card: Pick<Card, "suit" | "rank">) =>
+  isRed(card) ? "var(--ink-red)" : SUIT_ON_SLAB[card.suit];
 
 /**
  * A carta em dois caracteres: `10♥`, `A♠`, `★` para o coringa.

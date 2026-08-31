@@ -1,7 +1,7 @@
-import { cardLabel, isRed, type Card, type PublicPlayer } from "@fdp/shared";
+import { cardLabel, type Card, type PublicPlayer } from "@fdp/shared";
 import { anchorRef } from "../game/flights";
 import type { Bubble } from "../game/useEmotes";
-import { artUrl, cardShort } from "../lib/cards";
+import { artUrl, cardOnSlab, cardShort } from "../lib/cards";
 import { EmoteBubble } from "./EmoteBubble";
 
 type Props = {
@@ -160,7 +160,7 @@ export function PlayerSeat({
                 className="fdp-peek-short"
                 title={cardLabel(card)}
                 aria-label={cardLabel(card)}
-                style={{ color: isRed(card) ? "var(--ink-red)" : "var(--paper-hi)" }}
+                style={{ color: cardOnSlab(card) }}
               >
                 {cardShort(card)}
               </b>

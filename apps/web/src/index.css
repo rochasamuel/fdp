@@ -1312,6 +1312,27 @@ body {
   color: var(--paper-hi);
 }
 
+/* ---- o balão da sua vez --------------------------------------------------
+ * Você não tem assento, então não tem onde a mesa te marcar: o balão pende da
+ * fileira de ações, que é o seu lugar. Rosa cheio, e não a chapa dos outros
+ * balões — este não é uma fala, é a mesa cobrando.
+ *
+ * Pisca no mesmo par de rosas do `px-urgent`, e a um passo mais lento: aquele
+ * é um botão que aparece e some, este fica de pé a vez inteira, e meio segundo
+ * batendo esse tempo todo cansa a vista de quem está tentando escolher a
+ * carta.
+ * ------------------------------------------------------------------------- */
+.fdp-turn {
+  background: var(--mark);
+  /* O px-label pinta de `--gloss`, que é cinza sobre cinza. Aqui o fundo é o
+     rosa, e quem lê por cima dele é a tinta escura da moldura. */
+  color: var(--ink);
+  border: var(--stroke) solid var(--rim);
+  box-shadow: var(--drop-sm);
+  padding: 3px 7px;
+  animation: px-urgent 1s steps(1, end) infinite;
+}
+
 /* ---- movimento reduzido --------------------------------------------------
  * Numa CLASSE do <html>, e não na media query: a chave do sistema é uma só
  * para o computador inteiro, e esta mesa também tem a sua, nos ajustes do
@@ -1336,6 +1357,7 @@ body {
   .fdp-card.is-new,
   .px-caret,
   .px-btn-urgent,
+  .fdp-turn,
   .px-pop,
   .fdp-warn,
   /* a regra combinada tem especificidade 0,2,0 e venceria as de cima */

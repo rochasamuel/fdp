@@ -81,6 +81,13 @@ export function Table({
   const yourTurn = state.currentPlayerId === sessionId && state.phase === "playing";
   const bidding = state.stage === "making_promises";
   const yourBid = bidding && yourTurn;
+  /*
+   * A mesa está parada esperando VOCÊ — e não só "é o seu id que está no
+   * `currentPlayerId`". São as duas etapas em que existe uma ação sua: cantar
+   * a promessa e baixar a carta. Entre uma vaza e outra o id ainda é o seu por
+   * um instante, e um aviso piscando ali seria um aviso mentindo.
+   */
+  const waitingOnYou = yourTurn && (bidding || state.stage === "playing_trick");
   const you = state.players.find((player) => player.id === sessionId);
   /*
    * A vaza que se anulou: está completa — uma carta de cada um que ainda joga —
@@ -357,18 +364,27 @@ export function Table({
         </div>
 
         <div className="relative flex min-h-9 flex-wrap items-center justify-center gap-3">
-          {/* O seu balão nasce aqui porque você não tem assento: a fileira de
-              ações é o seu lugar na mesa, e o balão pende dela para cima como o
-              dos outros pende do assento deles. Absoluto pelo mesmo motivo —
-              nada se move quando ele vai e vem. */}
-          {bubbles[sessionId] && (
-            <span className="absolute bottom-full left-1/2 z-20 -translate-x-1/2 pb-1">
+          {/* Os seus dois balões nascem aqui porque você não tem assento: a
+              fileira de ações é o seu lugar na mesa, e eles pendem dela para
+              cima como os dos outros pendem do assento deles. Absoluto pelo
+              mesmo motivo — nada se move quando eles vão e vêm.
+
+              Empilhados numa coluna só, e não um por cima do outro: o da vez
+              fica colado na fileira, que é onde está a ação que ele cobra, e o
+              emote sobe. Dois absolutos no mesmo ponto se cobririam. */}
+          <span className="pointer-events-none absolute bottom-full left-1/2 z-20 flex -translate-x-1/2 flex-col items-center gap-1 pb-1">
+            {bubbles[sessionId] && (
               <EmoteBubble
                 key={bubbles[sessionId].seq}
                 emote={bubbles[sessionId].emote}
               />
-            </span>
-          )}
+            )}
+            {waitingOnYou && (
+              <span role="status" className="fdp-turn px-label">
+                sua vez
+              </span>
+            )}
+          </span>
 
           {/*
             O que a mesa está esperando de VOCÊ. São três situações e nada mais:
