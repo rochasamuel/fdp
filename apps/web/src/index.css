@@ -1,0 +1,1326 @@
+@import "tailwindcss";
+
+/*
+ * Design system: os tokens não são inventados — são as rampas de cor do
+ * gerador das cartas (`tools/cards/gen_card.py`). O texto é feito do material
+ * da MOLDURA da carta; a ênfase, do rosa do VERSO. Assim a interface e o
+ * baralho são literalmente a mesma coisa.
+ *
+ * Regras do sistema, todas herdadas do pixel art das cartas:
+ *   · nada de blur, nada de border-radius, nada de gradiente suave;
+ *   · tudo na grade de 4px (a carta tem chanfro de 4px e traço de 2px);
+ *   · relevo de 3 partes (claro em cima/esquerda, escuro embaixo/direita),
+ *     que é a mesma estrutura que dá volume aos índices das cartas;
+ *   · sombra dura deslocada 4px, nunca difusa.
+ */
+
+:root {
+  /*
+   * --- os painéis ---
+   * O verso do baralho é claro (creme e rosa), e um painel claro atrás de uma
+   * carta clara apagaria a carta: a chapa é o mesmo rosa levado ao escuro, o
+   * ROXO que sobra do `pink_d` (#9e6180) quando se tira a luz dele. Continua
+   * sendo a cor do verso — é a mesma matiz —, e ainda deixa a carta recortada.
+   */
+  --slab-hi: #2f2731;
+  --slab: #241e26;
+  --slab-sh: #150f17;
+  --rim: #0a080b;
+  --gloss: #57495a;
+
+  /* --- material da moldura (FRM em gen_card.py): o texto --- */
+  --ink: #1b1215;
+  --paper-hi: #fbf7ee;
+  --paper: #f1ebdd;
+  --paper-sh: #c4bcaa;
+
+  /* --- o rosa da trama do verso: a única cor de ênfase --- */
+  --mark-hi: #dfafc2;
+  --mark: #c4869e;
+  --mark-sh: #9e6180;
+
+  /* --- as duas tintas do baralho francês (INK em gen_card.py) --- */
+  --ink-red: #d9453f;
+  --ink-black: #2a2126;
+
+  /* Verde de "conectado", e só isso: é sinal de estado, não cor da paleta. */
+  --live: #4ca742;
+
+  /*
+   * --- o pano da mesa ---
+   * Cinco, todos do mesmo valor: a carta, o texto creme e o rosa da ênfase têm
+   * de ler igual sobre qualquer um deles. Quem escolhe é quem olha, e a escolha
+   * chega aqui como um `data-felt` no <html> — ver `lib/felt.ts`.
+   */
+  --felt-green: #14301e;
+  --felt-burgundy: #34121c;
+  --felt-navy: #142339;
+  --felt-charcoal: #1e1e22;
+  --felt-walnut: #2a1b12;
+  --felt: var(--felt-green);
+
+  /* --- métrica --- */
+  --stroke: 2px;
+  --bevel: inset 2px 2px 0 var(--slab-hi), inset -2px -2px 0 var(--slab-sh);
+  --drop: 4px 4px 0 rgba(6, 6, 8, 0.7);
+  --drop-sm: 2px 2px 0 rgba(6, 6, 8, 0.7);
+
+  /* --- cartas: valores validados em tools/cards/reference/uno_card.md --- */
+  --fdp-card-base: 120px;
+  --fdp-card-w: var(--fdp-card-base);
+  --fdp-shadow-rest: drop-shadow(3px 4px 0 rgba(0, 0, 0, 0.45));
+  --fdp-shadow-hover: drop-shadow(6px 12px 0 rgba(0, 0, 0, 0.5));
+  --fdp-ease: cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
+/* Um atributo no <html> e o pano inteiro troca. Ver `applyFelt` em lib/felt.ts. */
+[data-felt="burgundy"] { --felt: var(--felt-burgundy); }
+[data-felt="navy"] { --felt: var(--felt-navy); }
+[data-felt="charcoal"] { --felt: var(--felt-charcoal); }
+[data-felt="walnut"] { --felt: var(--felt-walnut); }
+
+@media (max-width: 640px) {
+  :root {
+    --fdp-card-base: 84px;
+  }
+}
+
+body {
+  margin: 0;
+  color: var(--paper);
+  background-color: var(--felt);
+  /* trama de 4px: textura de feltro em linguagem de pixel, sem desfoque */
+  background-image:
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.025) 0 1px, transparent 1px 4px),
+    repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.14) 0 1px, transparent 1px 4px);
+  font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  -webkit-font-smoothing: none;
+  overscroll-behavior: none;
+  /*
+   * `clip` e não `hidden`: hidden criaria um contêiner de rolagem e prenderia a
+   * carta arrastada (armadilha #8 do reference/uno_card.md). `clip` só corta, no eixo
+   * horizontal, o que já estaria fora da janela — e deixa o eixo vertical
+   * visível, sem coagir para `auto`.
+   */
+  overflow-x: clip;
+  overflow-y: visible;
+}
+
+:focus-visible {
+  outline: var(--stroke) solid var(--mark);
+  outline-offset: 2px;
+}
+
+/* ---- chapa: a peça base de toda a interface ------------------------------ */
+
+.px-slab {
+  background: var(--slab);
+  border: var(--stroke) solid var(--rim);
+  box-shadow: var(--bevel), var(--drop);
+}
+
+.px-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--gloss);
+}
+
+.px-title {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--paper-hi);
+  text-shadow: 2px 2px 0 var(--rim);
+}
+
+/* ---- botão: aperta de verdade -------------------------------------------- */
+
+.px-btn {
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--paper);
+  background: var(--slab-hi);
+  border: var(--stroke) solid var(--rim);
+  box-shadow: var(--bevel), var(--drop-sm);
+  padding: 8px 16px;
+  cursor: pointer;
+}
+.px-btn:not(:disabled):hover {
+  background: var(--gloss);
+}
+.px-btn:not(:disabled):active {
+  /* a peça afunda exatamente a altura da própria sombra */
+  transform: translate(2px, 2px);
+  box-shadow: var(--bevel);
+}
+.px-btn:disabled {
+  cursor: default;
+  color: var(--gloss);
+  background: var(--slab-sh);
+  box-shadow: var(--bevel);
+}
+
+.px-btn-primary {
+  color: var(--ink);
+  background: var(--mark);
+  box-shadow:
+    inset 2px 2px 0 var(--mark-hi),
+    inset -2px -2px 0 var(--mark-sh),
+    var(--drop-sm);
+}
+.px-btn-primary:not(:disabled):hover {
+  background: var(--mark-hi);
+}
+.px-btn-primary:not(:disabled):active {
+  transform: translate(2px, 2px);
+  box-shadow: inset 2px 2px 0 var(--mark-hi), inset -2px -2px 0 var(--mark-sh);
+}
+.px-btn-primary:disabled {
+  color: var(--slab);
+  background: var(--mark-sh);
+}
+
+/* Um botão que a mesa está esperando pisca em quadros, para não passar
+   despercebido. Sem regra ainda não há quem o use — a peça fica de pé. */
+@keyframes px-urgent {
+  50% {
+    background: var(--mark-hi);
+  }
+}
+.px-btn-urgent {
+  animation: px-urgent 0.5s steps(1, end) infinite;
+}
+
+/* Aparecer é o aviso: a peça salta em três quadros, como um sprite entrando. */
+@keyframes px-pop {
+  0% {
+    transform: scale(0.4);
+  }
+  50% {
+    transform: scale(1.2);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.px-pop {
+  animation: px-pop 0.18s steps(3, end);
+}
+/* As duas juntas precisam de uma regra própria: `animation` é shorthand, e a
+   última a valer apagaria a outra. */
+.px-btn-urgent.px-pop {
+  animation:
+    px-pop 0.18s steps(3, end),
+    px-urgent 0.5s steps(1, end) infinite;
+}
+
+.px-link {
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--gloss);
+  background: none;
+  border: 0;
+  padding: 4px;
+  cursor: pointer;
+}
+.px-link:hover {
+  color: var(--paper);
+}
+
+/*
+ * O crédito no rodapé da porta de entrada.
+ *
+ * Um link precisa dizer que é um link PARADO: no celular não há hover que o
+ * revele, e no tom do rótulo à esquerda o nome se lê como mais uma palavra da
+ * frase. O sublinhado é o mesmo traço de 2px que faz toda borda desta
+ * interface, e a folga é a mesma grade de 4px — nada de novo entrou no
+ * sistema, só um traço onde ele faltava.
+ */
+.px-credit {
+  color: var(--paper-sh);
+  padding: 4px 0;
+  border-bottom: var(--stroke) solid var(--gloss);
+}
+.px-credit:hover,
+.px-credit:focus-visible {
+  color: var(--mark);
+  border-bottom-color: var(--mark);
+}
+
+/* ---- campo: relevo invertido, como um sulco ------------------------------ */
+
+.px-input {
+  font: inherit;
+  color: var(--paper-hi);
+  background: var(--slab-sh);
+  border: var(--stroke) solid var(--rim);
+  box-shadow: inset 2px 2px 0 rgba(0, 0, 0, 0.5);
+  padding: 8px 12px;
+  width: 100%;
+}
+.px-input::placeholder {
+  color: var(--gloss);
+}
+
+/* ---- código da sala: o dado mais importante da tela de espera ------------ */
+
+.px-code {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+  color: var(--mark);
+  text-shadow: 2px 2px 0 var(--rim);
+}
+
+/* ---- cursor piscando: pixel pisca em quadros, não em rampa --------------- */
+
+@keyframes px-blink {
+  50% {
+    opacity: 0;
+  }
+}
+.px-caret {
+  animation: px-blink 1s steps(1, end) infinite;
+}
+
+/* ---- a promessa: contador e aviso ---------------------------------------- */
+
+/* O número entre o − e o +. Largura fixa em `ch` para o quadro não respirar
+   quando a promessa passa de 9 para 10 — a botoeira toda dançaria junto. */
+.fdp-bid {
+  font-size: 26px;
+  font-weight: 700;
+  min-width: 2.5ch;
+  text-align: center;
+  text-shadow: 2px 2px 0 var(--rim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* O aviso do número impossível: salta uma vez, em quadros, e FICA. Ele só sai
+   da tela quando o mostrador volta para um número que dá — é o motivo de o
+   Confirmar não funcionar, e não um recado de passagem. */
+@keyframes fdp-warn {
+  0% {
+    opacity: 0;
+    transform: translateY(4px) scale(0.5);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(0) scale(1.15);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.fdp-warn {
+  animation: fdp-warn 0.2s steps(4, end);
+}
+
+/* ============================ CARTAS ======================================
+ * Daqui para baixo, tudo vem de tools/cards/reference/uno_card.md e da demo
+ * em tools/cards/demo.html.
+ * Não ajuste no olho: cada número existe por causa de um caso concreto.
+ * ========================================================================= */
+
+.fdp-card {
+  width: var(--fdp-card-w);
+  aspect-ratio: 2 / 3;
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  filter: var(--fdp-shadow-rest);
+  transition:
+    transform 0.18s var(--fdp-ease),
+    filter 0.18s var(--fdp-ease);
+}
+
+.fdp-card img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* o SVG não traz width/height, então a caixa vem do CSS acima */
+  pointer-events: none;
+}
+
+/* ---- a mão em leque ------------------------------------------------------ */
+
+.fdp-hand {
+  display: flex;
+  list-style: none;
+  padding: 44px 0 0;
+  /*
+   * O padding acima é a folga para a carta subir no hover. A margem negativa
+   * de mesmo valor devolve essa folga ao layout: a mão sobe, a página encurta
+   * na mesma medida e a carta levantada passa a invadir a área das pilhas em
+   * vez de esticar o documento. Página mais curta é também o que evita a barra
+   * vertical — e é ela que, roubando largura, fazia nascer a horizontal.
+   */
+  margin: -44px 0 0;
+
+  /*
+   * A mão cabe na janela por dois meios, nesta ordem: primeiro as cartas se
+   * sobrepõem mais, e só quando isso se esgota é que elas encolhem. Sem os
+   * dois, uma mão grande empurra a página e cria rolagem horizontal.
+   *
+   * --cards, --gaps-r e --fit-r vêm do componente, que é quem conhece a
+   * geometria do leque. São recíprocos porque aqui só se multiplica: divisão
+   * por variável é a parte do calc() com pior suporte.
+   */
+  --cards: 1;
+  --gaps-r: 1;
+  --fit-r: 1;
+
+  /* 1. encolher, se nem o recobrimento máximo bastar */
+  --fdp-card-w: min(var(--fdp-card-base), calc((100vw - 52px) * var(--fit-r)));
+
+  /* 2. recobrir: parte dos 55% da demo e aperta só o necessário. Nunca passa
+     de 84%, senão a faixa que sobra de cada carta some e não dá para clicar. */
+  /* Janela, menos o padding da mesa (32px), menos uma folga de 20px para a
+     barra de rolagem vertical — `100vw` a inclui na conta, e sem descontá-la a
+     mão passa da largura útil exatamente quando a página fica alta demais.
+     Menos, ainda, o balanço das pontas: 0,9 de carta, o mesmo que --fit-r usa. */
+  --hand-max: min(calc(100vw - 52px - var(--fdp-card-w) * 0.9), 860px);
+  --pull: clamp(
+    calc(var(--fdp-card-w) * 0.55),
+    calc((var(--fdp-card-w) * var(--cards) - var(--hand-max)) * var(--gaps-r)),
+    calc(var(--fdp-card-w) * 0.84)
+  );
+}
+
+/* Elemento externo: só a posição no leque. */
+.fdp-slot {
+  transform: rotate(var(--angle, 0deg)) translateY(var(--drop-y, 0px));
+  transform-origin: bottom center;
+  margin-right: calc(var(--pull) * -1);
+  transition: transform 0.18s var(--fdp-ease);
+}
+.fdp-slot:last-child {
+  margin-right: 0;
+}
+.fdp-slot:hover,
+.fdp-slot:focus-within {
+  position: relative;
+  z-index: 10;
+}
+/* A carta arrastada endireita e sobe acima do resto do leque. */
+.fdp-slot:has(.is-dragging) {
+  --angle: 0deg;
+  --drop-y: 0px;
+  position: relative;
+  z-index: 100;
+}
+
+/* Elemento interno: só a interação. */
+.fdp-hand .fdp-card {
+  cursor: pointer;
+  touch-action: none;
+  transform: translate(var(--drag-x, 0px), var(--drag-y, 0px));
+}
+.fdp-hand:hover .fdp-card {
+  will-change: transform, filter;
+}
+.fdp-hand .fdp-card:hover,
+.fdp-hand .fdp-card:focus-visible {
+  transform: translateY(-32px) scale(1.08);
+  filter: var(--fdp-shadow-hover);
+}
+.fdp-hand .fdp-card.is-idle {
+  filter: var(--fdp-shadow-rest) grayscale(0.7) brightness(0.55);
+}
+.fdp-hand .fdp-card.is-dragging {
+  /* transição aqui deixaria a carta atrás do dedo */
+  transition: none;
+  cursor: grabbing;
+  transform: translate(var(--drag-x, 0px), var(--drag-y, 0px)) scale(1.06);
+  filter: var(--fdp-shadow-hover);
+}
+
+@keyframes fdp-flip-in {
+  from {
+    transform: rotateY(90deg) scale(0.9);
+    opacity: 0;
+  }
+}
+.fdp-card.is-new {
+  animation: fdp-flip-in 0.28s var(--fdp-ease);
+}
+
+/* ---- as duas pilhas ------------------------------------------------------ */
+
+.fdp-stack {
+  position: relative;
+  width: var(--fdp-card-w);
+  aspect-ratio: 2 / 3;
+}
+.fdp-stack .fdp-card {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  transform: translate(var(--dx, 0), var(--dy, 0)) rotate(var(--rot, 0deg));
+}
+
+/* Descarte: sombra POR CARTA. É ela que separa uma carta da de baixo. */
+.fdp-centre .fdp-card {
+  filter: var(--fdp-shadow-rest);
+}
+
+/* Compra: UMA sombra, no contêiner — uma passada de filtro em vez de seis. */
+.fdp-draw {
+  filter: var(--fdp-shadow-rest);
+  border: 0;
+  padding: 0;
+  background: none;
+  cursor: pointer;
+}
+.fdp-draw .fdp-card {
+  filter: none;
+}
+.fdp-draw:disabled {
+  cursor: default;
+  /* apagado o bastante para dizer "não dá", vivo o bastante para continuar
+     lendo como um monte de cartas */
+  opacity: 0.5;
+}
+.fdp-draw:not(:disabled):hover,
+.fdp-draw:focus-visible {
+  filter: var(--fdp-shadow-hover);
+}
+
+/* A carta recém-jogada cai na pilha. Só o "from": o estado final é o transform
+   que .fdp-stack .fdp-card já calcula, então não há salto no fim. */
+@keyframes fdp-dealt {
+  from {
+    transform: translate(var(--dx, 0px), calc(var(--dy, 0px) - 46px))
+      rotate(var(--rot, 0deg)) scale(1.14);
+    opacity: 0;
+  }
+}
+.fdp-centre .is-dealt {
+  animation: fdp-dealt 0.24s var(--fdp-ease);
+}
+
+.fdp-drop-zone {
+  transition: transform 0.18s var(--fdp-ease);
+}
+.fdp-drop-zone.is-armed {
+  transform: scale(1.06);
+}
+
+/* ---- cartas em voo -------------------------------------------------------
+ * A carta que sai do monte e chega na sua mão, ou no assento de quem comprou.
+ * As coordenadas vêm medidas do DOM em src/game/flights.ts; aqui só se desenha.
+ * ------------------------------------------------------------------------- */
+
+.fdp-flights {
+  position: fixed;
+  inset: 0;
+  /* acima da mesa e dos assentos, abaixo do fim de partida (40) */
+  z-index: 30;
+  pointer-events: none;
+}
+
+/*
+ * O arco sai de dois elementos, um eixo cada. O de fora anda em X a ritmo
+ * constante; o de dentro faz o Y com uma curva cujo primeiro ponto de controle
+ * é NEGATIVO — ela recua antes de avançar, então a carta sobe um pouco antes de
+ * cair. Duas curvas diferentes nos dois eixos desenham uma parábola, sem
+ * `offset-path` e sem uma linha de JavaScript por quadro.
+ *
+ * A duração vem por elemento, calculada da distância em flights.ts: um mesmo
+ * tempo para todos faz a carta que atravessa a mesa parecer apressada e a que
+ * já está no destino parecer preguiçosa.
+ *
+ * `both` nas duas: `backwards` prende a carta na origem durante o atraso do
+ * escalonamento (sem ele, as quatro cartas do +4 piscam no destino antes de
+ * partir), `forwards` a mantém na pose final no último quadro antes de sumir.
+ */
+.fdp-flight {
+  position: fixed;
+  animation-name: fdp-fly-x;
+  animation-timing-function: linear;
+  animation-fill-mode: both;
+}
+.fdp-flight-arc {
+  animation-name: fdp-fly-y;
+  animation-timing-function: cubic-bezier(0.52, -0.42, 0.42, 1);
+  animation-fill-mode: both;
+}
+/* Trecho curto — soltar a carta em cima do próprio descarte. Aqui o arco seria
+   um pulo inventado: a carta já está no lugar, só falta assentar. */
+.fdp-flight-arc.is-near {
+  animation-timing-function: var(--fdp-ease);
+}
+.fdp-flight .fdp-card {
+  width: 100%;
+  /* a transição de .fdp-card brigaria com os keyframes */
+  transition: none;
+  filter: var(--fdp-shadow-hover);
+}
+
+@keyframes fdp-fly-x {
+  to {
+    transform: translateX(var(--dx));
+  }
+}
+/*
+ * As duas pontas são poses inteiras, medidas na tela: o `from` continua a carta
+ * exatamente como o dedo a largou — inclusive os 6% a mais que o arraste lhe dá
+ * — e o `to` é a pose final EXATA da carta parada, com a inclinação do slot no
+ * leque ou do espalhamento na pilha. Onde este quadro termina, nada mais se mexe.
+ */
+@keyframes fdp-fly-y {
+  from {
+    transform: translateY(0) rotate(0deg) scale(var(--lift));
+  }
+  to {
+    transform: translateY(var(--dy)) rotate(var(--rot)) scale(var(--land));
+  }
+}
+
+/* Quem espera uma carta que ainda está no ar não a mostra duas vezes. Ocupa o
+   lugar — `visibility`, não `display` — senão o leque se fecharia e reabriria. */
+.is-airborne {
+  visibility: hidden;
+}
+
+/* ---- a mesa -------------------------------------------------------------- */
+
+/* Nem overflow:hidden nem filter podem entrar aqui: o primeiro corta a carta
+   arrastada, o segundo transforma a mesa em bloco contentor dela. */
+.fdp-table {
+  overflow: visible;
+}
+
+.fdp-seat {
+  position: relative;
+  border: var(--stroke) solid var(--rim);
+  background: var(--slab);
+  box-shadow: var(--bevel), var(--drop-sm);
+}
+.fdp-seat-active {
+  border-color: var(--mark);
+  background: var(--slab-hi);
+}
+/* O marcador de vez é um sinal, não um brilho: pisca em quadros. */
+.fdp-seat-active::before {
+  content: "▶";
+  position: absolute;
+  left: -14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--mark);
+  animation: px-blink 1s steps(1, end) infinite;
+}
+
+/* A setinha entre dois assentos: para que lado a vez corre. O cabeçalho já diz
+   o sentido com todas as letras — esta é para quem está olhando a mesa e não o
+   cabeçalho. Fica no tom apagado do papel, e não no rosa de ênfase: lê-se de
+   relance sem disputar com o assento da vez, que é o que a mesa tem de mais
+   urgente para dizer.
+
+   Margem de topo fixa, e não `align-self: center`: a altura do assento cresce
+   quando nasce um botão a mais na fileira, e a seta centrada subiria e desceria
+   junto. 32px a põe na linha do contador de cartas, onde ela fica em qualquer
+   estado. A margem lateral negativa come parte do gap dos dois lados, para ela
+   pertencer ao par de assentos em vez de flutuar entre eles. */
+.fdp-flow {
+  margin-top: 32px;
+  margin-inline: -6px;
+  font-size: 16px;
+  line-height: 16px;
+  color: var(--paper-sh);
+  user-select: none;
+}
+/* A seta que caiu no fim de uma fileira: o vizinho para quem ela aponta está na
+   linha de baixo. Guarda o lugar (ver useLineStarts em Table.tsx) e cala. */
+.fdp-flow-wrapped {
+  visibility: hidden;
+}
+
+/* ---- a mesa redonda ------------------------------------------------------
+ * A mesma mesa, com os assentos em roda em volta das pilhas em vez de em
+ * fileira no topo. É opção do cabeçalho e só existe em tela grande — quem liga
+ * a classe é a `Table`, que já precisa saber da largura para calcular as
+ * posições (ver `ringLayout` lá).
+ *
+ * O CSS não sabe onde fica cada assento: ele recebe --x e --y prontos, em
+ * porcentagem desta caixa. O que é dele é o TAMANHO da roda, que é o que sobrou
+ * de tela — e é justamente o que o JavaScript não deve adivinhar.
+ * ------------------------------------------------------------------------- */
+
+.fdp-arena-ring {
+  position: relative;
+}
+
+/*
+ * A caixa da elipse. Recuada por meio assento de cada lado (o assento tem
+ * 128px e nasce centrado no seu ponto), senão os das pontas do arco sairiam
+ * pela borda da mesa. Em cima, o recuo é para o balão do emoji e o que um
+ * assento pendura embaixo caberem sem encostar no cabeçalho.
+ *
+ * Fora do fluxo: as pilhas passam a ter a caixa inteira e se centram nela, que
+ * é o centro da roda. Na fileira normal esta regra não existe e as duas voltam
+ * a ser duas faixas empilhadas.
+ */
+.fdp-arena-ring > .fdp-seats {
+  position: absolute;
+  inset: 40px 72px 48px;
+  display: block;
+  /* Acima das pilhas, abaixo da camada de voo (30). Numa tela de notebook com
+     a mesa cheia o assento de cima raspa no descarte, e entre esconder um nome
+     e cobrir a quina de uma carta, some a quina: o nome é o que se lê para
+     saber de quem é a vez, e o "Pegar" e o "Trocar" são alvos de clique. */
+  z-index: 5;
+}
+
+/* A cadeira: some do layout na fileira, carrega o assento na roda. */
+.fdp-chair {
+  display: contents;
+}
+.fdp-arena-ring .fdp-chair {
+  display: block;
+  position: absolute;
+  left: var(--x);
+  top: var(--y);
+  transform: translate(-50%, -50%);
+}
+
+/* A seta do sentido, agora no ponto do arco entre dois assentos. Sem as
+   margens da fileira: lá elas a alinhavam com o contador de cartas do vizinho,
+   aqui o lugar dela é o ponto e mais nada. */
+.fdp-arena-ring .fdp-flow {
+  position: absolute;
+  left: var(--x);
+  top: var(--y);
+  margin: 0;
+  transform: translate(-50%, -50%);
+}
+
+/* ---- troca no 7 ----------------------------------------------------------
+ * A única escolha do jogo que não é uma carta: é uma PESSOA. E o que decide a
+ * escolha — o nome e quantas cartas ele tem — é exatamente o que o assento já
+ * mostra, então o alvo é o quadro inteiro, e não um botãozinho dentro dele.
+ * Num celular isso é a diferença entre mirar 128x72 com o polegar e mirar 60x24.
+ *
+ * Sem lista, sem modal: duplicar a mesa numa segunda lista de nomes seria
+ * pedir para escolher olhando para um lugar que não é a mesa.
+ * ------------------------------------------------------------------------- */
+
+/* Piscar em quadros é como tudo nesta interface avisa. Aqui o pisca é entre
+   dois tons do mesmo amarelo: o assento não pode apagar no meio da escolha. */
+.fdp-menu summary {
+  cursor: pointer;
+  list-style: none;
+}
+/* O triângulo do <details> é do sistema operacional e não do baralho. */
+.fdp-menu summary::-webkit-details-marker {
+  display: none;
+}
+.fdp-menu[open] summary {
+  color: var(--mark);
+}
+
+/* ---- a tira de estado da mesa -------------------------------------------- */
+
+/*
+ * No celular o cabeçalho é uma linha só, e nela os controles são glifos de
+ * doze pixels. O dedo não tem doze pixels — mas engordar os botões devolveria
+ * à barra a altura que ela acabou de perder. Então o alvo cresce por fora, num
+ * pseudo-elemento que se sobrepõe à tira sem ocupar lugar nela: o desenho
+ * continua do tamanho que é e a área de toque fica com 32px de altura.
+ *
+ * `pointer: coarse` e não uma largura: quem decide não é o tamanho da tela, é
+ * com o que se está apontando.
+ */
+/*
+ * A seta do sentido, sozinha na tira.
+ *
+ * De `sm` para cima ela é uma nota de rodapé: as setas entre os assentos já
+ * contam a mesma coisa, e com desenho. No celular aquelas não nascem, e esta
+ * vira a ÚNICA coisa na tela que diz para que lado a vez corre — apagada e com
+ * dez pixels ela passava batido. Aqui ela cresce e clareia até a mesma
+ * presença do quadrado da cor, que é o outro estado da mesa nesta tira.
+ */
+@media (width < 40rem) {
+  .fdp-header-turn {
+    font-size: 16px;
+    letter-spacing: 0;
+    color: var(--paper-sh);
+  }
+}
+
+@media (pointer: coarse) {
+  .fdp-header .px-link {
+    position: relative;
+  }
+  .fdp-header .px-link::after {
+    content: "";
+    position: absolute;
+    /* A folga lateral é metade do gap da tira, para dois alvos vizinhos
+       chegarem perto sem se sobrepor. */
+    inset: -8px -4px;
+  }
+}
+
+/*
+ * O painel pende do CABEÇALHO, e não do resumo: numa tela estreita a barra
+ * quebra em duas linhas e o resumo para no meio dela — preso a ele, o painel
+ * sai pela borda da janela. Preso à barra, ele acompanha a largura da mesa em
+ * qualquer tela. Quem o usa dá o `relative` à barra; ver Table.tsx.
+ */
+.fdp-menu-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  /* acima da mesa e da camada de voo (30), abaixo do fim de partida (40) */
+  z-index: 35;
+  width: max-content;
+  max-width: min(88vw, 340px);
+}
+
+/* O interruptor dos ajustes: uma linha inteira que é botão. Herda a fonte e a
+   cor de quem o contém — o que se vê são o quadradinho e o texto; o botão em si
+   não tem chapa nem borda. */
+/* A amostra de pano: um quadrado da cor, com o mesmo relevo das outras peças.
+   Escolhida, ela ganha o fio rosa — o mesmo que marca o assento da vez. */
+.fdp-felt-chip {
+  border: var(--stroke) solid var(--rim);
+  box-shadow: var(--bevel), var(--drop-sm);
+  cursor: pointer;
+  padding: 0;
+}
+.fdp-felt-chip:hover {
+  border-color: var(--gloss);
+}
+.fdp-felt-chip[aria-checked="true"] {
+  border-color: var(--mark);
+  box-shadow: var(--drop-sm);
+}
+
+/* A amostra de verso: a própria arte em miniatura, com o mesmo relevo e o
+   mesmo fio rosa da amostra de pano. A carta é 2/3, então a fileira de oito
+   quebra sozinha onde o painel é estreito. */
+.fdp-back-chip {
+  width: 30px;
+  aspect-ratio: 2 / 3;
+  padding: 0;
+  border: var(--stroke) solid var(--rim);
+  box-shadow: var(--bevel), var(--drop-sm);
+  background: none;
+  cursor: pointer;
+  line-height: 0;
+}
+.fdp-back-chip img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.fdp-back-chip:hover {
+  border-color: var(--gloss);
+}
+.fdp-back-chip[aria-checked="true"] {
+  border-color: var(--mark);
+  box-shadow: var(--drop-sm);
+}
+
+.fdp-switch {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+/* Preenchido é ligada, vazado é desligada — o mesmo ponto das regras da casa e
+   da conexão nos assentos. Quem diz qual dos dois é o `aria-checked`. */
+.fdp-switch-dot {
+  background: transparent;
+  border: 2px solid var(--gloss);
+}
+.fdp-switch[aria-checked="true"] .fdp-switch-dot {
+  background: var(--mark);
+}
+.fdp-switch-label {
+  color: var(--gloss);
+}
+.fdp-switch[aria-checked="true"] .fdp-switch-label,
+.fdp-switch:hover .fdp-switch-label {
+  color: var(--paper-hi);
+}
+
+/* ---- teclado da conversa -------------------------------------------------
+ * Dez teclas de emoji que abrem PARA CIMA, a partir da fileira de ações. Para
+ * baixo elas cairiam sobre o leque, que é onde a outra mão está — e escolher o
+ * que dizer não pode cobrir as cartas que se está pensando em jogar.
+ * ------------------------------------------------------------------------- */
+
+.fdp-emotes summary {
+  cursor: pointer;
+  list-style: none;
+}
+.fdp-emotes summary::-webkit-details-marker {
+  display: none;
+}
+
+.fdp-emote-panel {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  /* Centrado no botão: ele fica no meio da fileira, e a grade é larga o
+     bastante para encostar nas bordas de um celular se pendesse de um lado. */
+  left: 50%;
+  transform: translateX(-50%);
+  /* acima da mesa e da camada de voo (30), abaixo do fim de partida (40) */
+  z-index: 35;
+  width: max-content;
+  max-width: 88vw;
+}
+
+/* A tecla é um sulco, e não uma chapa: o emoji é que tem que saltar dela. */
+.fdp-emote-key {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  font-size: 20px;
+  line-height: 1;
+  border: var(--stroke) solid var(--rim);
+  background: var(--ink);
+  cursor: pointer;
+}
+.fdp-emote-key:hover:not(:disabled) {
+  background: var(--slab);
+}
+.fdp-emote-key:active:not(:disabled) {
+  transform: translate(1px, 1px);
+}
+/* O intervalo entre dois emojis, dito na tela. */
+.fdp-emote-key:disabled {
+  cursor: default;
+  opacity: 0.35;
+}
+
+/* ---- roleta do sorteio ---------------------------------------------------
+ * A janela é um sulco, como o campo de texto: o nome está DENTRO da chapa, e é
+ * isso que faz o rolo parecer uma peça girando atrás dela em vez de um texto
+ * trocando. Quem gira é o React, um nome por quadro (ver StarterRoulette.tsx).
+ * ------------------------------------------------------------------------- */
+
+.fdp-roulette {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  /* Caixa fixa: o nome troca a cada quadro e nomes têm larguras diferentes —
+     um painel que se remede a cada troca tremeria a volta inteira. */
+  width: min(72vw, 300px);
+  height: 44px;
+  padding: 0 12px;
+  background: var(--slab-sh);
+  border: var(--stroke) solid var(--rim);
+  box-shadow: inset 2px 2px 0 rgba(0, 0, 0, 0.5);
+}
+
+.fdp-roulette-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--paper-sh);
+  text-shadow: 2px 2px 0 var(--rim);
+}
+/* O sorteado acende no amarelo da mesa: é a única cor de ênfase, e aqui ela
+   diz "parou aqui". */
+.fdp-roulette-name.is-drawn {
+  color: var(--mark);
+}
+
+.fdp-roulette-mark {
+  color: var(--gloss);
+}
+.fdp-roulette:has(.is-drawn) .fdp-roulette-mark {
+  color: var(--mark);
+}
+
+/* ---- a barra do /mock --------------------------------------------------- */
+
+.fdp-mock-panel {
+  scrollbar-color: var(--gloss) var(--slab-sh);
+}
+.fdp-mock-panel::-webkit-scrollbar {
+  width: 10px;
+}
+.fdp-mock-panel::-webkit-scrollbar-track {
+  background: var(--slab-sh);
+}
+.fdp-mock-panel::-webkit-scrollbar-thumb {
+  background: var(--gloss);
+  border: var(--stroke) solid var(--rim);
+}
+.fdp-mock-panel::-webkit-scrollbar-thumb:hover {
+  background: var(--mark);
+}
+
+/* =========================================================================
+ * A REGRA NA TELA
+ *
+ * O FDP mostra três coisas que a mesa sozinha não mostrava: o que cada um
+ * prometeu, quantas vazas já fez e quantos pontos ainda tem. Tudo aqui é a
+ * mesma gramática do resto — traço de 2px, grade de 4px, nada de raio nem de
+ * desfoque, e o rosa do verso como única ênfase.
+ * ========================================================================= */
+
+/* O placar dentro do assento: pequeno, e do tom da folha, para não competir
+   com o nome. Quem procura por ele sabe onde ele está. */
+.fdp-score {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--gloss);
+}
+
+/* O "D" de quem reparte. Uma pastilha, e não um emoji: ela precisa caber na
+   linha do nome no celular, onde cada pixel de largura é do nome. */
+.fdp-badge {
+  display: inline-block;
+  min-width: 14px;
+  padding: 0 2px;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 14px;
+  text-align: center;
+  color: var(--ink);
+  background: var(--paper-sh);
+}
+
+/* A promessa cantada, no rosa da casa: durante a etapa das promessas ela é a
+   informação mais importante de um assento, e a pastilha de 9px do `D` ao lado
+   do nome não daria conta. Fundo cheio, e não texto colorido — é o contraste
+   que faz a mesa inteira se ler de uma passada de olho. */
+.fdp-call {
+  padding: 1px 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: var(--mark);
+  border: var(--stroke) solid var(--rim);
+  box-shadow:
+    inset 2px 2px 0 var(--mark-hi),
+    inset -2px -2px 0 var(--mark-sh);
+}
+
+/* Levou a última vaza. Dura só enquanto as cartas estão na mesa, e some com
+   elas — é um instante, e não um estado. */
+.fdp-seat-won {
+  border-color: var(--paper-hi);
+}
+
+/* Fora da partida: o assento continua na mesa, apagado. Tirá-lo mexeria a roda
+   inteira no meio do jogo, e quem saiu continua olhando. */
+.fdp-seat-out {
+  opacity: 0.45;
+  border-style: dashed;
+}
+
+/* A carta do adversário, aberta na rodada às cegas. Ninguém clica nela, mas é
+   a única informação da rodada.
+
+   Duas medidas: na tela larga ela pode ocupar dois terços de uma carta e se ler
+   do outro lado da mesa; abaixo de 1024px a fileira de assentos já disputa cada
+   pixel de altura com o leque, e ali ela encolhe. O tamanho de leitura, nessa
+   faixa, quem dá é o hover.
+
+   `position: relative` só para o `z-index` do hover ter em que pegar: sem ele o
+   ampliado passa POR BAIXO do assento vizinho, e é justamente o vizinho que ele
+   precisa cobrir. */
+.fdp-peek {
+  width: calc(var(--fdp-card-w) * 0.42);
+  aspect-ratio: 2 / 3;
+  display: block;
+  position: relative;
+  filter: var(--fdp-shadow-rest);
+  transition:
+    transform 0.18s var(--fdp-ease),
+    filter 0.18s var(--fdp-ease);
+}
+
+@media (min-width: 1024px) {
+  .fdp-peek {
+    width: calc(var(--fdp-card-w) * 0.62);
+  }
+}
+
+/* O zoom: a carta cresce no lugar, sobre tudo o que estiver em volta. Em toda
+   medida, porque em toda medida ela é pequena demais para uma dúvida — e a
+   dúvida sobre a carta do outro é a rodada às cegas inteira. */
+.fdp-peek:hover {
+  transform: scale(2.2);
+  filter: var(--fdp-shadow-hover);
+  z-index: 25;
+}
+
+/* A mesma carta no celular, onde a arte não caberia: `10♥`, e nada mais. */
+.fdp-peek-short {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  text-shadow: 1px 1px 0 var(--rim);
+}
+
+/* O aviso da rodada às cegas, preso ao alto da mesa. */
+.fdp-banner {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  padding: 4px 12px;
+  color: var(--ink);
+  background: var(--mark);
+  border: var(--stroke) solid var(--rim);
+  box-shadow: var(--drop-sm);
+}
+
+/* A tabela do placar: uma linha por jogador, e nada de zebra — a coluna que
+   importa já está colorida pelo resultado. */
+.fdp-score-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+.fdp-score-table th,
+.fdp-score-table td {
+  padding: 4px 8px;
+  text-align: center;
+  border-bottom: var(--stroke) solid var(--slab-hi);
+}
+.fdp-score-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.fdp-score-table tr.is-out {
+  opacity: 0.5;
+}
+
+/* A vaza que se anulou. Fica ao lado das cartas, e não por cima delas: o que
+   se quer ver nesse instante são justamente as cartas iguais na mesa. */
+.fdp-void {
+  position: absolute;
+  bottom: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  padding: 4px 8px;
+  color: var(--ink);
+  background: var(--paper-sh);
+  border: var(--stroke) solid var(--rim);
+  box-shadow: var(--drop-sm);
+}
+
+/* O interruptor de uma regra da casa, na criação da mesa. Uma caixa de marcar
+   de verdade — quadrada, com um X —, e não um trilho que desliza: o sistema
+   inteiro é de 2px e ângulo reto, e um trilho arredondado seria a única peça
+   fora dele. */
+.fdp-rule {
+  padding: 8px;
+  background: var(--slab-sh);
+  border: var(--stroke) solid var(--rim);
+  box-shadow:
+    inset 2px 2px 0 var(--rim),
+    inset -2px -2px 0 var(--slab-hi);
+  cursor: pointer;
+}
+.fdp-rule:hover {
+  background: var(--slab);
+}
+.fdp-rule-box {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 14px;
+  text-align: center;
+  color: var(--ink);
+  background: var(--paper);
+  border: var(--stroke) solid var(--rim);
+}
+.fdp-rule[aria-checked="true"] .fdp-rule-box {
+  background: var(--mark);
+}
+
+/* =========================================================================
+ * O TUTORIAL
+ * ========================================================================= */
+
+/* A régua de etapas: quadradinhos de 12px na grade de 4px. */
+.fdp-step {
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  cursor: pointer;
+  background: var(--slab-sh);
+  border: var(--stroke) solid var(--rim);
+}
+.fdp-step.is-done {
+  background: var(--mark-sh);
+}
+.fdp-step.is-here {
+  background: var(--mark);
+}
+.fdp-step:hover {
+  background: var(--gloss);
+}
+
+/* Um ponto de vida. Dez deles são a sua situação inteira no começo. */
+.fdp-pip {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  background: var(--mark);
+  border: var(--stroke) solid var(--rim);
+}
+
+/* O quadro de exemplo dentro do texto: um sulco, como o campo de entrada, para
+   se ler como "isto é uma ilustração" e não como mais um parágrafo. */
+.fdp-demo {
+  padding: 12px;
+  background: var(--slab-sh);
+  box-shadow:
+    inset 2px 2px 0 var(--rim),
+    inset -2px -2px 0 var(--slab-hi);
+}
+
+.fdp-demo-card {
+  width: calc(var(--fdp-card-w) * 0.7);
+  aspect-ratio: 2 / 3;
+  display: block;
+  filter: var(--fdp-shadow-rest);
+}
+.fdp-demo-card.is-won {
+  outline: var(--stroke) solid var(--mark);
+  outline-offset: 2px;
+}
+/* A carta que o cangar anulou: sem cor e apagada. Sumir de vez seria pior — o
+   que a regra ensina é justamente que ela FOI jogada e não valeu. A sombra
+   entra junto no `filter`, que é uma propriedade só: sem ela a carta anulada
+   descolaria do feltro enquanto as outras duas continuam em cima dele. */
+.fdp-demo-card.is-void {
+  opacity: 0.45;
+  filter: grayscale(1) var(--fdp-shadow-rest);
+}
+
+/* A escada da hierarquia: dezoito cartinhas que rolam na horizontal. Rolar é
+   melhor que encolher — abaixo de uns 40px de largura o índice da carta some, e
+   uma escada de força ilegível não ensina nada. */
+.fdp-ladder {
+  display: flex;
+  gap: 4px;
+  margin: 0;
+  padding: 8px;
+  list-style: none;
+  overflow-x: auto;
+  background: var(--slab-sh);
+  box-shadow:
+    inset 2px 2px 0 var(--rim),
+    inset -2px -2px 0 var(--slab-hi);
+}
+.fdp-ladder li {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-size: 10px;
+  color: var(--paper-sh);
+}
+.fdp-ladder img {
+  width: 40px;
+  aspect-ratio: 2 / 3;
+  display: block;
+}
+/* As cinco que fogem do próprio valor. A moldura é a única maneira de dizer
+   "esta não é a carta que você acha que é" sem uma legenda por cima dela. */
+.fdp-ladder li.is-special img {
+  outline: var(--stroke) solid var(--mark);
+}
+.fdp-ladder li.is-special {
+  color: var(--mark);
+}
+
+/* Os números da promessa no exemplo do tutorial. A mesa escolhe num contador,
+   e não numa botoeira — aqui eles aparecem todos de uma vez porque o que o
+   exemplo mostra é a REGRA, e não o widget: qual número está fora, e por quê. */
+.fdp-key {
+  display: inline-block;
+  min-width: 28px;
+  padding: 4px 8px;
+  text-align: center;
+  font-weight: 700;
+  color: var(--ink);
+  background: var(--mark);
+  border: var(--stroke) solid var(--rim);
+}
+.fdp-key.is-blocked {
+  color: var(--gloss);
+  background: var(--slab);
+  text-decoration: line-through;
+}
+
+/* O texto do tutorial. É o único lugar do jogo com PARÁGRAFO, e o corpo de
+   14px do resto lê apertado num bloco de cinco linhas. */
+.fdp-prose {
+  line-height: 1.7;
+  color: var(--paper);
+}
+.fdp-prose b {
+  color: var(--paper-hi);
+}
+
+/* ---- movimento reduzido --------------------------------------------------
+ * Numa CLASSE do <html>, e não na media query: a chave do sistema é uma só
+ * para o computador inteiro, e esta mesa também tem a sua, nos ajustes do
+ * cabeçalho. Quem soma as duas e liga a classe é o `syncMotionClass` no
+ * store/ui — a media query continua valendo, agora lida por lá.
+ * ------------------------------------------------------------------------- */
+
+.motion-off {
+  .fdp-card,
+  .fdp-peek,
+  .fdp-slot {
+    transition: none;
+  }
+  .fdp-hand .fdp-card:hover {
+    transform: none; /* mantém a sombra, tira o pulo */
+  }
+  /* A camada de voo nem chega a nascer (flights.ts desiste antes), mas se
+     nascesse, a carta não pode ficar parada em cima da mesa. */
+  .fdp-flight,
+  .fdp-flight-arc,
+  .fdp-centre .is-dealt,
+  .fdp-card.is-new,
+  .px-caret,
+  .px-btn-urgent,
+  .px-pop,
+  .fdp-warn,
+  /* a regra combinada tem especificidade 0,2,0 e venceria as de cima */
+  .px-btn-urgent.px-pop,
+  .fdp-seat-active::before {
+    animation: none;
+  }
+}

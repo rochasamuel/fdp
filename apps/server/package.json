@@ -1,0 +1,30 @@
+{
+  "name": "server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "build/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "node build/index.js",
+    "build": "pnpm --filter @fdp/shared build && tsc -p tsconfig.build.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@colyseus/schema": "^4.0.30",
+    "@colyseus/tools": "^0.17.20",
+    "@fdp/shared": "workspace:*",
+    "colyseus": "^0.17.10",
+    "cors": "^2.8.6",
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "@colyseus/testing": "^0.17.11",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^4.17.23",
+    "@types/node": "^24.13.3",
+    "tsx": "^4.23.12",
+    "typescript": "~5.9.3",
+    "vitest": "^4.1.10"
+  }
+}

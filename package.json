@@ -1,0 +1,23 @@
+{
+  "name": "fdp",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "packageManager": "pnpm@10.28.2",
+  "engines": {
+    "node": ">=20.9.0"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @fdp/shared build && pnpm -r --parallel dev",
+    "dev:web": "pnpm --filter=web... dev",
+    "dev:server": "pnpm --filter=server... dev",
+    "build": "pnpm -r build",
+    "build:web": "pnpm --filter=web... build",
+    "build:server": "pnpm --filter=server... build",
+    "test": "pnpm --filter server test",
+    "lint": "pnpm --filter web lint"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild", "msgpackr-extract"]
+  }
+}

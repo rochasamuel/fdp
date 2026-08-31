@@ -1,0 +1,265 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>FDP — baralho pixel</title>
+<!--
+  Bancada de conferencia do baralho. Abra direto do disco:
+
+      python3 gen_card.py && xdg-open demo.html
+
+  Os SVGs sao lidos de ./out/svg/. Nao ha build: e um arquivo so, e o ponto e
+  poder olhar a arte a 1x, a 8x e num leque sem subir servidor nenhum.
+-->
+<style>
+  :root {
+    --felt: #1d3b2a;
+    --felt-hi: #2a5138;
+    --ink: #e9e3d6;
+    --muted: #9db3a3;
+    --card-w: 128px;   /* 1:1 com a arte */
+    --pixel: 4;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 28px 32px 80px;
+    background:
+      radial-gradient(ellipse at 50% 0%, var(--felt-hi), var(--felt) 70%);
+    color: var(--ink);
+    font: 13px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    min-height: 100vh;
+  }
+  h1 { font-size: 15px; letter-spacing: .18em; text-transform: uppercase; margin: 0 0 4px; }
+  h2 {
+    font-size: 11px; letter-spacing: .22em; text-transform: uppercase;
+    color: var(--muted); font-weight: 400;
+    margin: 44px 0 14px; padding-bottom: 6px;
+    border-bottom: 1px solid rgba(255,255,255,.09);
+  }
+  p.lede { color: var(--muted); margin: 0 0 24px; max-width: 62ch; }
+
+  /* Controles ---------------------------------------------------------- */
+  .bar { display: flex; flex-wrap: wrap; gap: 18px; align-items: center; }
+  .bar label { display: flex; gap: 8px; align-items: center; color: var(--muted); }
+  .bar input[type=range] { width: 140px; accent-color: #d9b451; }
+  .bar select, .bar button {
+    font: inherit; color: var(--ink); background: rgba(0,0,0,.28);
+    border: 1px solid rgba(255,255,255,.16); border-radius: 4px;
+    padding: 3px 8px; cursor: pointer;
+  }
+
+  /* A carta ------------------------------------------------------------
+     Sem sombra assada no SVG: o gerador nao emite nenhuma, justamente para a
+     sombra poder ser do CSS e animar. drop-shadow segue o alpha da carta, entao
+     ele respeita os cantos arredondados -- box-shadow nao respeitaria. */
+  .card {
+    width: var(--card-w);
+    aspect-ratio: 128 / 192;
+    display: block;
+    image-rendering: pixelated;
+    filter: drop-shadow(0 3px 4px rgba(0,0,0,.45));
+    transition: transform .16s cubic-bezier(.2,.9,.3,1.2), filter .16s;
+    cursor: zoom-in;
+  }
+  .card:hover {
+    transform: translateY(-10px) scale(1.03);
+    filter: drop-shadow(0 12px 14px rgba(0,0,0,.5));
+    z-index: 5; position: relative;
+  }
+
+  /* Grade do baralho ---------------------------------------------------- */
+  .deck { display: grid; grid-template-columns: repeat(13, max-content); gap: 10px; }
+  .deck.narrow { grid-template-columns: repeat(7, max-content); }
+  .extras { display: flex; gap: 10px; margin-top: 10px; }
+
+  /* Leque ---------------------------------------------------------------
+     Cada carta gira em torno de um ponto bem abaixo dela, o que produz o arco
+     sem precisar posicionar nada a mao. O viewBox do SVG e exatamente a carta,
+     entao transform-origin cai no centro real. */
+  .fan { height: 300px; display: flex; justify-content: center; align-items: flex-start; }
+  .fan .card {
+    margin: 0 calc(var(--card-w) / -2.6);
+    transform-origin: 50% 260%;
+    transform: rotate(var(--a));
+  }
+  .fan .card:hover { transform: rotate(var(--a)) translateY(-22px) scale(1.05); }
+
+  /* Lupa ---------------------------------------------------------------- */
+  .zoom { display: flex; gap: 28px; align-items: flex-start; flex-wrap: wrap; }
+  .zoom-stage { position: relative; line-height: 0; }
+  .zoom-stage img {
+    width: calc(128px * var(--pixel));
+    image-rendering: pixelated;
+    display: block;
+    background: #0e1a13;
+  }
+  /* Malha de 1px por pixel de arte, so acima de 4x -- abaixo disso ela vira
+     mais grade que arte. */
+  .zoom-stage .grid {
+    position: absolute; inset: 0; pointer-events: none;
+    background-image:
+      linear-gradient(to right, rgba(255,255,255,.14) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255,255,255,.14) 1px, transparent 1px);
+    background-size: calc(1px * var(--pixel)) calc(1px * var(--pixel));
+  }
+  .zoom-meta { color: var(--muted); }
+  .zoom-meta b { color: var(--ink); font-weight: 400; }
+  .zoom-meta table { border-collapse: collapse; margin-top: 10px; }
+  .zoom-meta td { padding: 1px 12px 1px 0; }
+</style>
+
+<h1>FDP · baralho pixel</h1>
+<p class="lede">
+  54 cartas mais o verso, geradas por <code>gen_card.py</code> em SVG de 128&times;192.
+  Passe o mouse para o hover, clique para a lupa.
+</p>
+
+<div class="bar">
+  <label>tamanho
+    <input type="range" id="size" min="64" max="280" value="128">
+    <span id="sizeOut">128px</span>
+  </label>
+  <label>fundo
+    <select id="felt">
+      <option value="#1d3b2a|#2a5138">feltro verde</option>
+      <option value="#1a1f2e|#252c42">feltro azul</option>
+      <option value="#2a1a1e|#3d262c">feltro vinho</option>
+      <option value="#121013|#1c191e">preto</option>
+      <option value="#d8d2c4|#eae5da">claro</option>
+    </select>
+  </label>
+  <label><input type="checkbox" id="grid" checked> malha na lupa</label>
+  <label>verso do baralho
+    <select id="backPick">
+      <option>weave</option><option>zigzag</option><option>argyle</option>
+      <option>bloom</option><option>ripple</option><option>maze</option>
+      <option>basket</option><option>planet</option>
+    </select>
+  </label>
+  <button id="shuffle">embaralhar o leque</button>
+</div>
+
+<h2>Baralho</h2>
+<div class="deck" id="deck"></div>
+<div class="extras" id="extras"></div>
+
+<h2>Versos</h2>
+<div class="extras" id="backs"></div>
+
+<h2>Leque</h2>
+<div class="fan" id="fan"></div>
+
+<h2>Lupa</h2>
+<div class="zoom">
+  <div class="zoom-stage">
+    <img id="zoomImg" alt="">
+    <div class="grid" id="zoomGrid"></div>
+  </div>
+  <div class="zoom-meta">
+    <div><b id="zoomName">—</b></div>
+    <table>
+      <tr><td>arquivo</td><td><b id="zoomFile">—</b></td></tr>
+      <tr><td>grid</td><td><b>128 × 192 px</b></td></tr>
+      <tr><td>zoom</td><td><b id="zoomLevel">4×</b></td></tr>
+    </table>
+    <div style="margin-top:12px">
+      <button data-zoom="1">1×</button>
+      <button data-zoom="2">2×</button>
+      <button data-zoom="4">4×</button>
+      <button data-zoom="8">8×</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const SUITS = ['spades', 'hearts', 'diamonds', 'clubs'];
+const RANKS = ['a', 2, 3, 4, 5, 6, 7, 8, 9, 10, 'j', 'q', 'k'];
+const SRC = c => `./out/svg/fdp-${c}.svg`;
+
+function card(stem, label) {
+  const img = document.createElement('img');
+  img.className = 'card';
+  img.src = SRC(stem);
+  img.alt = label;
+  img.dataset.stem = stem;
+  img.addEventListener('click', () => zoom(stem, label));
+  return img;
+}
+
+// Grade: uma linha por naipe, na ordem do baralho.
+const deck = document.getElementById('deck');
+for (const s of SUITS)
+  for (const r of RANKS)
+    deck.append(card(`${s}-${r}`, `${r} de ${s}`));
+
+const BACKS = ['weave', 'zigzag', 'argyle', 'bloom',
+               'ripple', 'maze', 'basket', 'planet'];
+
+const extras = document.getElementById('extras');
+for (const [stem, label] of [
+  ['joker-red', 'coringa vermelho'],
+  ['joker-black', 'coringa preto'],
+]) extras.append(card(stem, label));
+
+// Os versos. O jogo escolhe um pelo nome; aqui da para comparar os sete lado a
+// lado, que e a unica forma honesta de escolher.
+const backsEl = document.getElementById('backs');
+for (const name of BACKS) backsEl.append(card(`back-${name}`, `verso ${name}`));
+
+// Leque: uma mao de 7, com o angulo distribuido em torno do zero.
+const fan = document.getElementById('fan');
+function dealFan() {
+  fan.textContent = '';
+  const hand = [];
+  while (hand.length < 7) {
+    const stem = `${SUITS[Math.random() * 4 | 0]}-${RANKS[Math.random() * 13 | 0]}`;
+    if (!hand.includes(stem)) hand.push(stem);
+  }
+  hand.forEach((stem, i) => {
+    // A ultima do leque sai virada, para o verso escolhido aparecer em uso e
+    // nao so na grade de comparacao.
+    const face = i === hand.length - 1
+      ? `back-${document.getElementById('backPick').value}` : stem;
+    const el = card(face, face);
+    el.style.setProperty('--a', `${(i - (hand.length - 1) / 2) * 7}deg`);
+    fan.append(el);
+  });
+}
+dealFan();
+document.getElementById('shuffle').addEventListener('click', dealFan);
+document.getElementById('backPick').addEventListener('change', dealFan);
+
+// Lupa.
+function zoom(stem, label) {
+  document.getElementById('zoomImg').src = SRC(stem);
+  document.getElementById('zoomImg').alt = label;
+  document.getElementById('zoomName').textContent = label;
+  document.getElementById('zoomFile').textContent = `fdp-${stem}.svg`;
+}
+zoom('spades-a', 'as de espadas');
+
+for (const b of document.querySelectorAll('[data-zoom]'))
+  b.addEventListener('click', () => {
+    document.documentElement.style.setProperty('--pixel', b.dataset.zoom);
+    document.getElementById('zoomLevel').textContent = `${b.dataset.zoom}×`;
+  });
+
+document.getElementById('grid').addEventListener('change', e => {
+  document.getElementById('zoomGrid').style.display = e.target.checked ? '' : 'none';
+});
+
+const size = document.getElementById('size');
+size.addEventListener('input', () => {
+  document.documentElement.style.setProperty('--card-w', size.value + 'px');
+  document.getElementById('sizeOut').textContent = size.value + 'px';
+  // Acima de ~170px as 13 colunas de um naipe passam da largura da tela na
+  // maioria dos monitores; a partir dai a grade quebra em 7.
+  deck.classList.toggle('narrow', size.value > 170);
+});
+
+document.getElementById('felt').addEventListener('change', e => {
+  const [a, b] = e.target.value.split('|');
+  document.documentElement.style.setProperty('--felt', a);
+  document.documentElement.style.setProperty('--felt-hi', b);
+  document.body.style.color = a === '#d8d2c4' ? '#2a2620' : '';
+});
+</script>
