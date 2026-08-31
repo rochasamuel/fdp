@@ -1216,6 +1216,12 @@ body {
   border: var(--stroke) solid var(--rim);
 }
 
+/* O ponto que já foi embora: o casulo continua na fileira — é ele que diz de
+   quanto se caiu — mas apagado, como uma lâmpada queimada no painel. */
+.fdp-pip.is-spent {
+  background: var(--slab-sh);
+}
+
 /* O quadro de exemplo dentro do texto: um sulco, como o campo de entrada, para
    se ler como "isto é uma ilustração" e não como mais um parágrafo. */
 .fdp-demo {

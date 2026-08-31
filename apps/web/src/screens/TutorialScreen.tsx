@@ -3,6 +3,7 @@ import { HIERARCHY, SUIT_LADDER, SUIT_NAME, STARTING_POINTS, cardLabel } from "@
 import { artUrl, backUrl } from "../lib/cards";
 import { navigate } from "../lib/router";
 import { useUi } from "../store/ui";
+import { YourPoints } from "../components/YourPoints";
 
 /**
  * Aprenda a jogar.
@@ -307,16 +308,10 @@ export function TutorialScreen() {
 
 /* ---------------------------------------------------------- as ilustrações */
 
-/** Dez quadradinhos: os pontos de todo mundo no começo da partida. */
+/** Dez quadradinhos: os pontos de todo mundo no começo da partida — a mesma
+    fileira que fica ao lado do log durante a partida. */
 function Points() {
-  return (
-    <p className="flex flex-wrap items-center gap-1" aria-label={`${STARTING_POINTS} pontos`}>
-      {Array.from({ length: STARTING_POINTS }, (_, i) => (
-        <span key={i} className="fdp-pip" />
-      ))}
-      <span className="px-label pl-2">{STARTING_POINTS} pontos</span>
-    </p>
-  );
+  return <YourPoints points={STARTING_POINTS} />;
 }
 
 /** A escada inteira, com as cinco especiais marcadas. */

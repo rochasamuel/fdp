@@ -25,6 +25,7 @@ import { Hand, type HandEntry } from "./Hand";
 import { PlayerSeat } from "./PlayerSeat";
 import { RulesMenu } from "./RulesMenu";
 import { SystemLog } from "./SystemLog";
+import { YourPoints } from "./YourPoints";
 
 type Props = {
   state: TableState;
@@ -359,11 +360,22 @@ export function Table({
         feltro vazio num monitor de 1920.
       */}
       <div className="relative mt-3 flex flex-col items-center gap-8 pb-8">
-        <div className="absolute bottom-0 left-0 hidden md:block">
+        {/* Os seus pontos moram em cima do log: os dois são a memória da mesa
+            — um conta o que acabou de acontecer, o outro conta no que isso te
+            deixou. No celular o log não cabe, e os pontos descem para a fileira
+            de ações, que é para onde você já está olhando. */}
+        <div className="absolute bottom-0 left-0 hidden flex-col gap-2 md:flex">
+          {you && <YourPoints points={you.points} className="px-slab self-start px-3 py-2" />}
           <SystemLog messages={state.log} />
         </div>
 
         <div className="relative flex min-h-9 flex-wrap items-center justify-center gap-3">
+          {you && (
+            <span className="flex w-full justify-center md:hidden">
+              <YourPoints points={you.points} className="px-slab px-3 py-1.5" />
+            </span>
+          )}
+
           {/* Os seus dois balões nascem aqui porque você não tem assento: a
               fileira de ações é o seu lugar na mesa, e eles pendem dela para
               cima como os dos outros pendem do assento deles. Absoluto pelo
