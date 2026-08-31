@@ -9,8 +9,5 @@
   },
   "deploy": {
     "startCommand": "cd apps/server && node build/index.js",
-    "variables": {
-      "RAILPACK_NX_APP": "fdp-game"
-    }
   }
 }
