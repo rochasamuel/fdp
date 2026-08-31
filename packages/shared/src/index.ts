@@ -219,8 +219,21 @@ export const DEFAULT_MAX_PLAYERS = 4;
 
 /* ------------------------------------------------------------- a regra */
 
-/** Com quantos pontos todo mundo senta. Daqui em diante a conta só desce. */
+/**
+ * Com quantos pontos todo mundo senta, quando a mesa não escolhe outro número.
+ * Daqui em diante a conta só desce.
+ */
 export const STARTING_POINTS = 10;
+
+/**
+ * O maior número de pontos que dá para combinar na criação da mesa. Mais que
+ * isso é uma partida que não acaba na mesma noite — e o mostrador de pontos
+ * deixa de caber na tela.
+ */
+export const MAX_STARTING_POINTS = 50;
+
+/** O menor: um ponto é uma rodada de vida. */
+export const MIN_STARTING_POINTS = 1;
 
 /** O baralho inteiro: 52 e um coringa. É o teto do que dá para repartir. */
 export const DECK_SIZE = 53;
@@ -502,6 +515,8 @@ export type TableState = {
   cardsPerPlayer: number;
   /** O teto de cartas por rodada combinado na criação; `0` é sem teto. */
   maxCards: number;
+  /** Com quantos pontos esta mesa começou. Ver `STARTING_POINTS`. */
+  startingPoints: number;
   dealerId: string;
   /** A vaza em disputa, contada a partir de 1. */
   trickNumber: number;
@@ -546,6 +561,11 @@ export type CreateRoomOptions = {
    * como o jogo sempre foi. Ver `maxHandSize`.
    */
   maxCards?: number;
+  /**
+   * Com quantos pontos todo mundo senta. Ausente ou fora da faixa é
+   * `STARTING_POINTS`. Ver `MAX_STARTING_POINTS`.
+   */
+  startingPoints?: number;
   /** Ver `HouseRules`. Ausente é a mesa sem regra opcional nenhuma. */
   cangar?: boolean;
   porcao?: boolean;

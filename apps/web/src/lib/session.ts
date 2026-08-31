@@ -9,7 +9,10 @@ import {
   DEFAULT_MAX_PLAYERS,
   MAX_CARDS_CAP,
   MAX_PLAYERS,
+  MAX_STARTING_POINTS,
   MIN_PLAYERS,
+  MIN_STARTING_POINTS,
+  STARTING_POINTS,
 } from "@fdp/shared";
 import { DEFAULT_BACK, isBack, type Back } from "./cards";
 import { DEFAULT_FELT, isFelt, type Felt } from "./felt";
@@ -36,6 +39,8 @@ export type StoredSetup = {
   maxPlayers: number;
   /** O teto de cartas por rodada; `0` é sem teto. Ver `maxHandSize`. */
   maxCards: number;
+  /** Com quantos pontos todo mundo senta. Ver `STARTING_POINTS`. */
+  startingPoints: number;
   /** As regras da casa da última mesa. Ver `HouseRules` no `@fdp/shared`. */
   cangar: boolean;
   porcao: boolean;
@@ -100,6 +105,7 @@ export function loadSetup(): StoredSetup {
     roomName: "Sexta-feira FDP",
     maxPlayers: DEFAULT_MAX_PLAYERS,
     maxCards: 0,
+    startingPoints: STARTING_POINTS,
     ...DEFAULT_HOUSE_RULES,
   };
 
@@ -113,6 +119,7 @@ export function loadSetup(): StoredSetup {
 
   const seats = Number(stored.maxPlayers);
   const cards = Number(stored.maxCards);
+  const points = Number(stored.startingPoints);
   return {
     roomName:
       typeof stored.roomName === "string" && stored.roomName.trim()
@@ -121,6 +128,10 @@ export function loadSetup(): StoredSetup {
     maxPlayers:
       seats >= MIN_PLAYERS && seats <= MAX_PLAYERS ? Math.round(seats) : fallback.maxPlayers,
     maxCards: cards >= 1 && cards <= MAX_CARDS_CAP ? Math.round(cards) : 0,
+    startingPoints:
+      points >= MIN_STARTING_POINTS && points <= MAX_STARTING_POINTS
+        ? Math.round(points)
+        : fallback.startingPoints,
     cangar: stored.cangar === true,
     porcao: stored.porcao === true,
   };

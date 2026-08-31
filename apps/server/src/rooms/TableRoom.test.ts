@@ -1,5 +1,5 @@
 import { boot, type ColyseusTestServer } from "@colyseus/testing";
-import { MAX_PLAYERS } from "@fdp/shared";
+import { MAX_PLAYERS, STARTING_POINTS } from "@fdp/shared";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import appConfig from "../app.config.js";
 import type { TableGame } from "../game/TableGame.js";
@@ -159,6 +159,35 @@ describe("a regra pela sala", () => {
     expect(engine(room).game.rules).toEqual({ cangar: true, porcao: true });
     expect(room.state.cangar).toBe(true);
     expect(room.state.porcao).toBe(true);
+  });
+
+  /*
+   * Os pontos da mesa são combinados na criação, como as regras. O que chega
+   * fora da faixa não pode virar uma mesa esquisita — de zero pontos, em que
+   * todo mundo já sentou eliminado —, então ele vira o padrão de sempre.
+   */
+  it("senta todo mundo com os pontos combinados na criação", async () => {
+    const room = await colyseus.createRoom<TableRoom>("table", {
+      roomName: "Mesa",
+      startingPoints: 50,
+    });
+    await colyseus.connectTo(room, { playerName: "Ana" });
+    await room.waitForNextPatch();
+
+    expect(room.state.startingPoints).toBe(50);
+    expect([...room.state.players][0].points).toBe(50);
+  });
+
+  it("volta ao padrão quando os pontos pedidos não cabem na faixa", async () => {
+    const room = await colyseus.createRoom<TableRoom>("table", {
+      roomName: "Mesa",
+      startingPoints: 900,
+    });
+    await colyseus.connectTo(room, { playerName: "Ana" });
+    await room.waitForNextPatch();
+
+    expect(room.state.startingPoints).toBe(STARTING_POINTS);
+    expect([...room.state.players][0].points).toBe(STARTING_POINTS);
   });
 
   it("aceita a promessa de quem tem a vez e a espelha para a mesa", async () => {

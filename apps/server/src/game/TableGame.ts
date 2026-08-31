@@ -126,6 +126,13 @@ export class TableGame {
    */
   maxCards = 0;
 
+  /**
+   * Com quantos pontos todo mundo senta nesta mesa. Escrito uma vez, junto do
+   * teto de cartas e pelo mesmo motivo: mudar quanto vale uma vida no meio da
+   * partida seria mudar quem já está fora.
+   */
+  startingPoints = STARTING_POINTS;
+
   constructor(private random: () => number = Math.random) {}
 
   /** Lê e esvazia a fila de animação. A sala chama isto uma vez por sync. */
@@ -189,11 +196,11 @@ export class TableGame {
       key,
       name,
       hand: [],
-      points: STARTING_POINTS,
+      points: this.startingPoints,
       promise: null,
       tricks: 0,
       eliminated: false,
-      overshoot: STARTING_POINTS,
+      overshoot: this.startingPoints,
     });
     this.pushLog(`${name} entrou na sala.`);
   }
@@ -296,12 +303,12 @@ export class TableGame {
     this.pending = null;
 
     for (const player of this.players) {
-      player.points = STARTING_POINTS;
+      player.points = this.startingPoints;
       player.hand = [];
       player.promise = null;
       player.tricks = 0;
       player.eliminated = false;
-      player.overshoot = STARTING_POINTS;
+      player.overshoot = this.startingPoints;
     }
 
     const drafted = this.players.findIndex((p) => p.id === starterId);

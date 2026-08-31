@@ -1,6 +1,7 @@
 import { ArraySchema, Schema, type } from "@colyseus/schema";
 import {
   DEFAULT_MAX_PLAYERS,
+  STARTING_POINTS,
   type Card,
   type GamePhase,
   type MatchStage,
@@ -110,6 +111,8 @@ export class TableRoomState extends Schema {
   @type("uint8") cardsPerPlayer = 0;
   /** O teto de cartas por rodada combinado na criação; `0` é sem teto. */
   @type("uint8") maxCards = 0;
+  /** Com quantos pontos todo mundo sentou nesta mesa. */
+  @type("uint8") startingPoints = STARTING_POINTS;
   @type("string") dealerId = "";
   @type("uint8") trickNumber = 0;
   /** A rodada às cegas: cada um vê a mão dos outros, e não a sua. */

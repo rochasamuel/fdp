@@ -1222,6 +1222,22 @@ body {
   background: var(--slab-sh);
 }
 
+/* A mesma leitura da fileira de casulos, para quando ela não cabe: numa mesa
+   de cinquenta pontos o que se vê é o quanto ainda está aceso, e não cinquenta
+   quadradinhos que ninguém conta. */
+.fdp-pip-bar {
+  display: inline-block;
+  width: 96px;
+  height: 10px;
+  background: var(--slab-sh);
+  border: var(--stroke) solid var(--rim);
+}
+.fdp-pip-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--mark);
+}
+
 /* O quadro de exemplo dentro do texto: um sulco, como o campo de entrada, para
    se ler como "isto é uma ilustração" e não como mais um parágrafo. */
 .fdp-demo {

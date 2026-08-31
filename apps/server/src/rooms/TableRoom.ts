@@ -6,9 +6,12 @@ import {
   LOBBY_RECONNECT_TIMEOUT,
   MAX_CARDS_CAP,
   MAX_PLAYERS,
+  MAX_STARTING_POINTS,
   MIN_PLAYERS,
+  MIN_STARTING_POINTS,
   RECONNECT_TIMEOUT,
   STARTER_SPIN,
+  STARTING_POINTS,
   type CreateRoomOptions,
   type EmoteEvent,
   type EmoteMessage,
@@ -149,6 +152,13 @@ export class TableRoom extends Room<{ state: TableRoomState }> {
     const cap = Math.round(Number(options?.maxCards));
     this.game.maxCards = cap >= 1 && cap <= MAX_CARDS_CAP ? cap : 0;
     this.state.maxCards = this.game.maxCards;
+
+    // Com quantos pontos todo mundo senta. Ausente ou fora da faixa vira o
+    // padrão de sempre — a mesa nunca começa com um número que ninguém pediu.
+    const points = Math.round(Number(options?.startingPoints));
+    this.game.startingPoints =
+      points >= MIN_STARTING_POINTS && points <= MAX_STARTING_POINTS ? points : STARTING_POINTS;
+    this.state.startingPoints = this.game.startingPoints;
   }
 
   /**

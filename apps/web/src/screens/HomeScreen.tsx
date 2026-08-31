@@ -3,8 +3,11 @@ import { useMutation } from "@tanstack/react-query";
 import {
   MAX_CARDS_CAP,
   MAX_PLAYERS,
+  MAX_STARTING_POINTS,
   MIN_PLAYERS,
+  MIN_STARTING_POINTS,
   RULES,
+  STARTING_POINTS,
   type CreateRoomOptions,
   type HouseRules,
 } from "@fdp/shared";
@@ -14,6 +17,17 @@ import { setPendingRoom } from "../lib/pendingRoom";
 import { navigate } from "../lib/router";
 import { loadSetup, newSeatKey, saveSession, saveSetup } from "../lib/session";
 import { useUi } from "../store/ui";
+
+/**
+ * O número que a mesa vai usar de verdade. O campo aceita qualquer coisa
+ * enquanto se digita — vazio, "007", 900 —, e é aqui que isso vira um ponto
+ * de partida válido. O servidor refaz esta mesma conta: esta é a da tela.
+ */
+function clampPoints(value: string): number {
+  const points = Math.round(Number(value));
+  if (!Number.isFinite(points) || points < MIN_STARTING_POINTS) return MIN_STARTING_POINTS;
+  return Math.min(points, MAX_STARTING_POINTS);
+}
 
 export function HomeScreen() {
   const playerName = useUi((ui) => ui.playerName);
@@ -25,6 +39,10 @@ export function HomeScreen() {
   const [roomName, setRoomName] = useState(setup.roomName);
   const [maxPlayers, setMaxPlayers] = useState(setup.maxPlayers);
   const [maxCards, setMaxCards] = useState(setup.maxCards);
+  // Digitado à mão, e por isso guardado como texto: o campo precisa aceitar
+  // ficar vazio no meio da digitação sem virar 0 a cada tecla. Quem decide o
+  // número é o envio, e depois dele o servidor.
+  const [startingPoints, setStartingPoints] = useState(String(setup.startingPoints));
   const [rules, setRules] = useState<HouseRules>({
     cangar: setup.cangar,
     porcao: setup.porcao,
@@ -47,6 +65,7 @@ export function HomeScreen() {
         roomName: options.roomName,
         maxPlayers: options.maxPlayers,
         maxCards: options.maxCards ?? 0,
+        startingPoints: options.startingPoints ?? STARTING_POINTS,
         cangar: options.cangar === true,
         porcao: options.porcao === true,
       });
@@ -71,6 +90,7 @@ export function HomeScreen() {
             playerName,
             maxPlayers,
             maxCards,
+            startingPoints: clampPoints(startingPoints),
             ...rules,
             seatKey: newSeatKey(),
           });
@@ -133,6 +153,33 @@ export function HomeScreen() {
             value={maxCards}
             onChange={(event) => setMaxCards(Number(event.target.value))}
             style={{ accentColor: "var(--mark)" }}
+          />
+        </label>
+
+        {/*
+          Com quantos pontos todo mundo senta.
+
+          Um ponto é uma rodada de vida: dez é a partida de sempre, e quem tem
+          a noite inteira sobe o número. Vai digitado, e não num arrastador,
+          porque o combinado da mesa costuma ser um número redondo que alguém
+          já disse em voz alta — e um arrastador de cinquenta casas erra ele.
+        */}
+        <label className="flex flex-col gap-1">
+          <span className="px-label">
+            Pontos de cada jogador · até {MAX_STARTING_POINTS}
+          </span>
+          <input
+            className="px-input"
+            type="number"
+            inputMode="numeric"
+            min={MIN_STARTING_POINTS}
+            max={MAX_STARTING_POINTS}
+            value={startingPoints}
+            onChange={(event) => setStartingPoints(event.target.value)}
+            // O campo pode ficar vazio ou fora da faixa enquanto se digita; ao
+            // sair dele, ele mostra o número que a mesa vai realmente usar.
+            onBlur={() => setStartingPoints(String(clampPoints(startingPoints)))}
+            required
           />
         </label>
 

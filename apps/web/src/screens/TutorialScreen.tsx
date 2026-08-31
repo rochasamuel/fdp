@@ -26,8 +26,8 @@ const STEPS: Step[] = [
     body: (
       <>
         <p>
-          Você começa com <b>{STARTING_POINTS} pontos</b>. Eles nunca sobem — só
-          descem. Seu objetivo é ser <b>o último jogador ainda com pontos</b>.
+          Você começa com <b>{STARTING_POINTS} pontos</b> — quem abre a mesa
+          pode combinar outro número. Eles nunca sobem — só descem. Seu objetivo é ser <b>o último jogador ainda com pontos</b>.
         </p>
         <Points />
         <p>

@@ -5,6 +5,8 @@ type Props = {
   rules: HouseRules;
   /** O teto de cartas por rodada; `0` é o que o baralho der. */
   maxCards: number;
+  /** Com quantos pontos todo mundo sentou. */
+  startingPoints: number;
 };
 
 /**
@@ -21,7 +23,7 @@ type Props = {
  * Divide as classes e o `name` com o painel de ajustes: os dois caem no mesmo
  * canto da barra, e abrir um fecha o outro.
  */
-export function RulesMenu({ rules, maxCards }: Props) {
+export function RulesMenu({ rules, maxCards, startingPoints }: Props) {
   const on = RULES.filter(({ key }) => rules[key]).length;
 
   return (
@@ -53,6 +55,19 @@ export function RulesMenu({ rules, maxCards }: Props) {
             {maxCards > 0
               ? `A rodada sobe até ${maxCards} cartas e volta para uma.`
               : "A rodada sobe até o baralho não dar mais, e volta para uma."}
+          </span>
+        </p>
+
+        {/* Com quantos pontos a mesa sentou. Como o teto de cartas, é medida e
+            não regra: quem entrou depois precisa dela para saber se está perto
+            da porta da rua ou no começo de uma partida longa. */}
+        <p className="flex flex-col text-left">
+          <span className="text-sm" style={{ color: "var(--paper-hi)" }}>
+            Pontos de cada jogador
+            <span className="px-label ml-2">{startingPoints}</span>
+          </span>
+          <span className="text-xs" style={{ color: "var(--paper-sh)" }}>
+            Todo mundo sentou com {startingPoints}; zero é a porta da rua.
           </span>
         </p>
 

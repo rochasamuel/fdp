@@ -247,6 +247,7 @@ export function Table({
           <RulesMenu
             rules={{ cangar: state.cangar, porcao: state.porcao }}
             maxCards={state.maxCards}
+            startingPoints={state.startingPoints}
           />
           <ConfigMenu wide={wide} />
           <button
@@ -365,14 +366,22 @@ export function Table({
             deixou. No celular o log não cabe, e os pontos descem para a fileira
             de ações, que é para onde você já está olhando. */}
         <div className="absolute bottom-0 left-0 hidden flex-col gap-2 md:flex">
-          {you && <YourPoints points={you.points} className="px-slab self-start px-3 py-2" />}
+          {you && <YourPoints
+              points={you.points}
+              total={state.startingPoints}
+              className="px-slab self-start px-3 py-2"
+            />}
           <SystemLog messages={state.log} />
         </div>
 
         <div className="relative flex min-h-9 flex-wrap items-center justify-center gap-3">
           {you && (
             <span className="flex w-full justify-center md:hidden">
-              <YourPoints points={you.points} className="px-slab px-3 py-1.5" />
+              <YourPoints
+                points={you.points}
+                total={state.startingPoints}
+                className="px-slab px-3 py-1.5"
+              />
             </span>
           )}
 
