@@ -1,5 +1,5 @@
-import { useEffect, useRef, type RefObject } from "react";
-import { cardLabel, type Card } from "@fdp/shared";
+import { useEffect, useMemo, useRef, type RefObject } from "react";
+import { cardLabel, cardPower, type Card } from "@fdp/shared";
 import { anchorRef, poseOfCard, useFlightStore, type Pose } from "../game/flights";
 import { artUrl, backUrl } from "../lib/cards";
 import { useUi } from "../store/ui";
@@ -23,6 +23,22 @@ const ARC = 10; // px the ends drop
  * usa o recíproco disso para saber até onde pode encolher a carta.
  */
 const handSpan = (count: number) => 1.878 + 0.16 * Math.max(0, count - 1);
+
+/**
+ * O leque se lê da esquerda para a direita, da mais forte para a mais fraca:
+ * quem procura a carta que ganha a rodada acha na ponta, sempre no mesmo lugar,
+ * e não precisa varrer a mão a cada compra.
+ *
+ * Só as `shown` primeiras entram na ordenação. As de trás ainda estão no ar —
+ * o servidor as empurra no fim da mão e é lá que o voo mira — então elas ficam
+ * onde estão e só entram na ordem quando pousam. Carta às cegas não tem força
+ * conhecida: vai para o fim das visíveis, sem inventar um lugar para ela.
+ */
+function byPowerDesc(cards: HandEntry[], shown: number) {
+  const landed = cards.slice(0, shown);
+  const power = (entry: HandEntry) => (entry.card ? cardPower(entry.card) : -1);
+  return [...landed].sort((a, b) => power(b) - power(a)).concat(cards.slice(shown));
+}
 
 type Props = {
   cards: HandEntry[];
@@ -59,7 +75,8 @@ export function Hand({
    */
   const airborne = useFlightStore((state) => state.heldHand);
   const shown = Math.max(0, cards.length - airborne);
-  const fresh = useFreshCards(cards.slice(0, shown));
+  const ordered = useMemo(() => byPowerDesc(cards, shown), [cards, shown]);
+  const fresh = useFreshCards(ordered.slice(0, shown));
 
   const middle = (cards.length - 1) / 2;
   const spread = Math.min(SPREAD, MAX_FAN / Math.max(1, cards.length - 1));
@@ -77,7 +94,7 @@ export function Hand({
         "--fit-r": 1 / handSpan(cards.length),
       } as React.CSSProperties}
     >
-      {cards.map((entry, index) => {
+      {ordered.map((entry, index) => {
         const fromMiddle = index - middle;
         const normalized = middle === 0 ? 0 : fromMiddle / middle;
         return (
