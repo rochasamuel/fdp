@@ -1,4 +1,16 @@
-import { cardArt, isJoker, isRed, SUIT_PIP, type Card, type Suit } from "@fdp/shared";
+import {
+  cardArt,
+  cardPower,
+  isJoker,
+  isRed,
+  isSameCard,
+  PORCAO,
+  PORCAO_ARMED,
+  SUIT_PIP,
+  ZAP,
+  type Card,
+  type Suit,
+} from "@fdp/shared";
 
 export const artUrl = (card: Pick<Card, "suit" | "rank">) => `/cards/svg/${cardArt(card)}.svg`;
 
@@ -75,4 +87,34 @@ export function scatter(index: number, pileSize: number, isTop: boolean) {
     dx: (hash(index * 3 + 2) * 2 - 1) * offset,
     dy: (hash(index * 3 + 3) * 2 - 1) * offset,
   };
+}
+
+/**
+ * Qual carta da pilha é a MAIOR — a que fica por cima e ganha o espalhamento
+ * curto do topo. É a leitura que o centro deve dar de graça: quem está
+ * ganhando a vaza se vê sem contar carta por carta.
+ *
+ * A força é a da tabela, com uma exceção: o porcão só é a carta mais forte do
+ * baralho com o zap na mesa, e a mais fraca sem ele. Fora isso a hierarquia é
+ * uma ordem total — não há empate para desempatar.
+ *
+ * O cangar não entra aqui. Ele decide quem LEVA a vaza, anulando valores
+ * repetidos; a maior carta da mesa continua sendo a maior, e é ela que a pilha
+ * mostra.
+ */
+export function strongestIndex(cards: Pick<Card, "suit" | "rank">[], porcao: boolean) {
+  const armed = porcao && cards.some((card) => isSameCard(card, ZAP));
+  const strength = (card: Pick<Card, "suit" | "rank">) =>
+    porcao && isSameCard(card, PORCAO) ? (armed ? PORCAO_ARMED : 0) : cardPower(card);
+
+  let best = -1;
+  let top = -Infinity;
+  cards.forEach((card, index) => {
+    const power = strength(card);
+    if (power > top) {
+      top = power;
+      best = index;
+    }
+  });
+  return best;
 }

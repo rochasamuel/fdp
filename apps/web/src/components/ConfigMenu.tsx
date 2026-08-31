@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { BACKS, backUrl } from "../lib/cards";
 import { FELTS } from "../lib/felt";
+import { useMediaQuery } from "../lib/useMediaQuery";
 import { useUi } from "../store/ui";
 
 type Props = {
@@ -32,6 +33,15 @@ export function ConfigMenu({ wide }: Props) {
   const setFelt = useUi((ui) => ui.setFelt);
   const back = useUi((ui) => ui.back);
   const setBack = useUi((ui) => ui.setBack);
+  const confirmPlay = useUi((ui) => ui.confirmPlay);
+  const setConfirmPlay = useUi((ui) => ui.setConfirmPlay);
+  /*
+   * A confirmação só aparece onde ela serve, pelo mesmo motivo da mesa
+   * redonda: no mouse a carta não escapa do ponteiro, e a chave seria uma
+   * chave para um problema que aquela tela não tem. O corte é o ponteiro, e
+   * não a largura — um tablet grande é dedo do mesmo jeito.
+   */
+  const coarse = useMediaQuery("(pointer: coarse)");
 
   return (
     <details className="fdp-menu" name="fdp-header">
@@ -99,6 +109,15 @@ export function ConfigMenu({ wide }: Props) {
             onToggle={() => setSeatLayout(seatLayout === "ring" ? "row" : "ring")}
             label="Mesa redonda"
             hint="Os assentos em roda em volta das pilhas, no lugar da fileira no topo."
+          />
+        )}
+        {coarse && (
+          <Switch
+            on={confirmPlay}
+            onToggle={() => setConfirmPlay(!confirmPlay)}
+            label="Confirmar a jogada"
+            state={["ligada", "desligada"]}
+            hint="O primeiro toque põe a carta de pé, o segundo a joga. Arrastar até a pilha joga direto."
           />
         )}
         <Switch

@@ -18,12 +18,19 @@ type UiStore = {
   felt: Felt;
   /** O verso do baralho, pelo mesmo motivo do pano: ver `lib/cards.ts`. */
   back: Back;
+  /**
+   * O segundo toque antes de a carta sair da mão. É a chave; quem pergunta se
+   * ela vale AGORA é o `Hand`, que a cruza com o ponteiro grosso — no mouse a
+   * carta não sai sem querer, e o passo a mais só atrapalharia.
+   */
+  confirmPlay: boolean;
   setPlayerName: (name: string) => void;
   toggleSound: () => void;
   setSeatLayout: (layout: SeatLayout) => void;
   setLowMotion: (low: boolean) => void;
   setFelt: (felt: Felt) => void;
   setBack: (back: Back) => void;
+  setConfirmPlay: (confirm: boolean) => void;
 };
 
 export const useUi = create<UiStore>((set, get) => ({
@@ -33,6 +40,7 @@ export const useUi = create<UiStore>((set, get) => ({
   lowMotion: prefs.lowMotion,
   felt: prefs.felt,
   back: prefs.back,
+  confirmPlay: prefs.confirmPlay,
   setPlayerName: (playerName) => set({ playerName }),
   toggleSound: () => set((state) => ({ soundEnabled: !state.soundEnabled })),
   setSeatLayout: (seatLayout) => {
@@ -52,6 +60,10 @@ export const useUi = create<UiStore>((set, get) => ({
     set({ back });
     persist(get());
   },
+  setConfirmPlay: (confirmPlay) => {
+    set({ confirmPlay });
+    persist(get());
+  },
 }));
 
 /**
@@ -59,8 +71,8 @@ export const useUi = create<UiStore>((set, get) => ({
  * espalhamento: o store também carrega o nome de quem joga e as próprias
  * funções, e nada disso é preferência de mesa.
  */
-const persist = ({ seatLayout, lowMotion, felt, back }: UiStore) =>
-  savePrefs({ seatLayout, lowMotion, felt, back });
+const persist = ({ seatLayout, lowMotion, felt, back, confirmPlay }: UiStore) =>
+  savePrefs({ seatLayout, lowMotion, felt, back, confirmPlay });
 
 /**
  * A resposta que o resto do código quer: a mesa se move ou não?

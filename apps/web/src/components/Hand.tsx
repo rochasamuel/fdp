@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, type RefObject } from "react";
-import { cardLabel, cardPower, type Card } from "@fdp/shared";
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
+import { cardLabel, type Card } from "@fdp/shared";
 import { anchorRef, poseOfCard, useFlightStore, type Pose } from "../game/flights";
 import { artUrl, backUrl } from "../lib/cards";
 import { useUi } from "../store/ui";
 import { useDragCard } from "../lib/useDragCard";
+import { useMediaQuery } from "../lib/useMediaQuery";
 
 /**
  * Uma posição no leque. `card` é `null` quando a carta está na sua mão e você
@@ -23,22 +24,6 @@ const ARC = 10; // px the ends drop
  * usa o recíproco disso para saber até onde pode encolher a carta.
  */
 const handSpan = (count: number) => 1.878 + 0.16 * Math.max(0, count - 1);
-
-/**
- * O leque se lê da esquerda para a direita, da mais forte para a mais fraca:
- * quem procura a carta que ganha a rodada acha na ponta, sempre no mesmo lugar,
- * e não precisa varrer a mão a cada compra.
- *
- * Só as `shown` primeiras entram na ordenação. As de trás ainda estão no ar —
- * o servidor as empurra no fim da mão e é lá que o voo mira — então elas ficam
- * onde estão e só entram na ordem quando pousam. Carta às cegas não tem força
- * conhecida: vai para o fim das visíveis, sem inventar um lugar para ela.
- */
-function byPowerDesc(cards: HandEntry[], shown: number) {
-  const landed = cards.slice(0, shown);
-  const power = (entry: HandEntry) => (entry.card ? cardPower(entry.card) : -1);
-  return [...landed].sort((a, b) => power(b) - power(a)).concat(cards.slice(shown));
-}
 
 type Props = {
   cards: HandEntry[];
@@ -75,15 +60,44 @@ export function Hand({
    */
   const airborne = useFlightStore((state) => state.heldHand);
   const shown = Math.max(0, cards.length - airborne);
-  const ordered = useMemo(() => byPowerDesc(cards, shown), [cards, shown]);
-  const fresh = useFreshCards(ordered.slice(0, shown));
+  const fresh = useFreshCards(cards.slice(0, shown));
 
   const middle = (cards.length - 1) / 2;
   const spread = Math.min(SPREAD, MAX_FAN / Math.max(1, cards.length - 1));
 
+  const [armed, setArmed] = useArmedCard(playableIds);
+  /*
+   * O segundo toque vale onde o dedo escorrega, e não onde a pessoa escolheu
+   * uma chave: no mouse a carta não sai sem querer, e o passo a mais só
+   * atrapalharia. A chave dos ajustes é o outro lado do E — ver `confirmPlay`
+   * no `store/ui.ts`, e a chave em si no `ConfigMenu`.
+   */
+  const coarse = useMediaQuery("(pointer: coarse)");
+  const needsConfirm = useUi((ui) => ui.confirmPlay) && coarse;
+
+  const list = useRef<HTMLUListElement>(null);
+  const attach = useCallback((element: HTMLUListElement | null) => {
+    list.current = element;
+    anchorRef("hand")(element);
+  }, []);
+
+  /*
+   * Tocar fora do leque desarma. Sem isto a carta armada é uma armadilha: ela
+   * fica de pé enquanto a rodada anda, e o toque seguinte na mão — vindo de
+   * outra intenção, minutos depois — a joga.
+   */
+  useEffect(() => {
+    if (!armed) return;
+    const away = (event: PointerEvent) => {
+      if (!list.current?.contains(event.target as Node)) setArmed(null);
+    };
+    document.addEventListener("pointerdown", away);
+    return () => document.removeEventListener("pointerdown", away);
+  }, [armed, setArmed]);
+
   return (
     <ul
-      ref={anchorRef("hand")}
+      ref={attach}
       className="fdp-hand"
       aria-label="Sua mão"
       // O CSS aperta o leque conforme a mão cresce, para ele nunca passar da
@@ -94,7 +108,7 @@ export function Hand({
         "--fit-r": 1 / handSpan(cards.length),
       } as React.CSSProperties}
     >
-      {ordered.map((entry, index) => {
+      {cards.map((entry, index) => {
         const fromMiddle = index - middle;
         const normalized = middle === 0 ? 0 : fromMiddle / middle;
         return (
@@ -113,6 +127,9 @@ export function Hand({
               dimmed={yourTurn && !playableIds.has(entry.id)}
               isNew={fresh.has(entry.id)}
               airborne={index >= shown}
+              armed={armed === entry.id}
+              needsConfirm={needsConfirm}
+              onArm={setArmed}
               dropTarget={dropTarget}
               onPlay={onPlay}
               onDragOver={onDragOver}
@@ -131,6 +148,11 @@ type CardProps = {
   isNew: boolean;
   /** Ainda a caminho: guarda o lugar no leque, mas não se mostra. */
   airborne: boolean;
+  /** De pé, esperando o segundo toque. */
+  armed: boolean;
+  /** O toque arma em vez de jogar. */
+  needsConfirm: boolean;
+  onArm: (cardId: string | null) => void;
   dropTarget: RefObject<HTMLElement | null>;
   onPlay: (cardId: string, from: Pose) => void;
   onDragOver: (over: boolean) => void;
@@ -142,6 +164,9 @@ function HandCard({
   dimmed,
   isNew,
   airborne,
+  armed,
+  needsConfirm,
+  onArm,
   dropTarget,
   onPlay,
   onDragOver,
@@ -149,16 +174,29 @@ function HandCard({
   const element = useRef<HTMLButtonElement>(null);
   const back = useUi((ui) => ui.back);
 
-  // Clicar joga; arrastar até o descarte joga. Os dois caminhos chamam o mesmo
-  // onPlay, e é o servidor que decide se a jogada vale.
-  const resolve = (played: boolean, from: Pose) => {
-    if (played && playable) onPlay(entry.id, from);
+  /*
+   * Clicar joga; arrastar até o descarte joga. Os dois caminhos chamam o mesmo
+   * onPlay, e é o servidor que decide se a jogada vale.
+   *
+   * `direct` é o gesto que dispensa a confirmação: o arraste, que atravessa
+   * meia tela, e o teclado, que já foi até a carta com o Tab. O que escorrega
+   * é o toque, e é dele que o segundo passo protege — o primeiro toque põe a
+   * carta de pé, o segundo a manda.
+   */
+  const resolve = (played: boolean, from: Pose, direct = false) => {
+    if (!played || !playable) return;
+    if (needsConfirm && !direct && !armed) {
+      onArm(entry.id);
+      return;
+    }
+    onPlay(entry.id, from);
   };
 
   const drag = useDragCard(dropTarget, resolve, onDragOver);
   // A carta que você não pode ver mostra o VERSO e se anuncia como escondida:
   // a limitação é de verdade, e a tela não finge saber o que não recebeu.
   const label = entry.card ? cardLabel(entry.card) : "carta escondida";
+  const action = armed ? `Confirmar ${label}` : `Jogar ${label}`;
 
   return (
     <button
@@ -169,19 +207,38 @@ function HandCard({
         dimmed && "is-idle",
         isNew && "is-new",
         airborne && "is-airborne",
+        armed && "is-armed",
       ]
         .filter(Boolean)
         .join(" ")}
-      aria-label={playable ? `Jogar ${label}` : label}
+      aria-label={playable ? action : label}
       {...drag}
       onClick={(event) => {
         // detail === 0 means keyboard: the pointer handlers never ran.
-        if (event.detail === 0) resolve(true, poseOfCard(event.currentTarget));
+        if (event.detail === 0) resolve(true, poseOfCard(event.currentTarget), true);
       }}
     >
       <img src={entry.card ? artUrl(entry.card) : backUrl(back)} alt="" />
     </button>
   );
+}
+
+/**
+ * A carta de pé, e as duas horas em que ela precisa deitar sozinha.
+ *
+ * Uma é a jogada dar certo: a carta sai da mão e some do `playableIds`. A
+ * outra é a vez passar para outro, que esvazia o conjunto inteiro — a carta
+ * continua na mão, mas armada ela seria uma promessa que a mesa não cumpre
+ * mais. As duas se leem no mesmo lugar, e é por isso que são uma checagem só.
+ *
+ * Ela é uma DERIVAÇÃO, e não um efeito que zera o estado depois: a carta que
+ * deixou de ser jogável já não está armada neste render, e não no seguinte. O
+ * id velho fica guardado sem fazer nada, até o próximo toque escrever por
+ * cima — apagá-lo custaria o render a mais que esta conta existe para evitar.
+ */
+function useArmedCard(playableIds: Set<string>) {
+  const [armed, setArmed] = useState<string | null>(null);
+  return [armed && playableIds.has(armed) ? armed : null, setArmed] as const;
 }
 
 const NO_CARDS: ReadonlySet<string> = new Set();

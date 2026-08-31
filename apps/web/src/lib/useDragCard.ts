@@ -21,8 +21,12 @@ export function useDragCard(
    * Medida antes de `cancel`, que devolve a carta ao leque — depois dele, um
    * arraste largado no descarte mediria o slot de origem, e um clique numa
    * carta da ponta mediria a horizontal em vez da inclinação do leque.
+   *
+   * `dragged` separa os dois gestos que chegam aqui. Levar a carta até a pilha
+   * é deliberado — não escapa do dedo —, e é por isso que a confirmação do
+   * celular vale só para o toque. Ver `needsConfirm` no `Hand`.
    */
-  onDrop: (hit: boolean, from: Pose) => void,
+  onDrop: (hit: boolean, from: Pose, dragged: boolean) => void,
   onOver?: (hit: boolean) => void,
 ) {
   const origin = useRef<{ x: number; y: number } | null>(null);
@@ -76,7 +80,7 @@ export function useDragCard(
       cancel(element);
       // Arraste de verdade só joga se soltar no descarte. Gesto curto é
       // clique, e clique joga — quem usa teclado nunca vai arrastar.
-      onDrop(dropped ? hit : true, from);
+      onDrop(dropped ? hit : true, from, dropped);
     },
 
     // The browser cancels the pointer on its own (system gesture, incoming

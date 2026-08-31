@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { cardLabel, toCard, type PublicCard } from "@fdp/shared";
 import { anchorRef, useFlightStore } from "../game/flights";
-import { artUrl, scatter } from "../lib/cards";
+import { artUrl, scatter, strongestIndex } from "../lib/cards";
 
 /**
  * O centro da mesa: onde a carta jogada pousa.
@@ -9,17 +9,23 @@ import { artUrl, scatter } from "../lib/cards";
  * O que o centro SIGNIFICA é decisão da regra que o FDP ainda não tem — monte
  * de descarte, vaza, aposta. O que ele já é, e vale para qualquer uma delas, é
  * uma pilha bagunçada com o topo à mostra e um alvo para o arrasto.
+ *
+ * O topo é a MAIOR carta da mesa, e não a última baixada: a pilha é o retrato
+ * de quem está ganhando a vaza. Carta que entra por cima da maior passa por
+ * baixo dela, o que é justamente o que a jogada significa.
  */
 
 type Props = {
   /** A ponta visível da pilha, da mais antiga para a mais recente. */
   cards: PublicCard[];
   total: number;
+  /** A regra do porcão muda qual é a maior carta da mesa. */
+  porcao: boolean;
   armed: boolean;
   ref: React.RefObject<HTMLDivElement | null>;
 };
 
-export function CentrePile({ cards, total, armed, ref }: Props) {
+export function CentrePile({ cards, total, porcao, armed, ref }: Props) {
   // A carta que ainda está voando até aqui não pode já estar na pilha.
   const airborne = useFlightStore((state) => state.heldCentre);
   const shown = airborne.size > 0 ? cards.filter((card) => !airborne.has(card.id)) : cards;
@@ -33,6 +39,13 @@ export function CentrePile({ cards, total, armed, ref }: Props) {
    */
   const seen = useRef(total);
   const base = total - cards.length;
+
+  /*
+   * Quem é o topo se decide pela pilha inteira, e não pelo que está visível:
+   * com a maior ainda no ar, a segunda viraria "topo", trocaria de
+   * espalhamento e voltaria atrás quando a outra pousasse.
+   */
+  const topId = cards[strongestIndex(cards.map(toCard), porcao)]?.id;
 
   useEffect(() => {
     seen.current = total;
@@ -58,10 +71,7 @@ export function CentrePile({ cards, total, armed, ref }: Props) {
         // visível, cada jogada desliza a janela e o React recicla os nós
         // errados — as cartas trocam de lugar sozinhas.
         const index = base + offset;
-        // Quem é o topo se decide pela pilha inteira, não pelo que está
-        // visível: com a carta de cima ainda no ar, a de baixo viraria "topo",
-        // trocaria de espalhamento e voltaria atrás quando a outra pousasse.
-        const isTop = index === total - 1;
+        const isTop = card.id === topId;
         const { rot, dx, dy } = scatter(index, total, isTop);
         return (
           <img

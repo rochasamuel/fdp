@@ -139,6 +139,11 @@ export type StoredPrefs = {
   felt: Felt;
   /** O verso do baralho, pelo mesmo motivo do pano: ver `cards.ts`. */
   back: Back;
+  /**
+   * Pedir um segundo toque antes de a carta sair da mão. Vale só onde o dedo
+   * escorrega — ver `confirmPlay` na `store/ui.ts`.
+   */
+  confirmPlay: boolean;
 };
 
 export function savePrefs(prefs: StoredPrefs) {
@@ -152,6 +157,9 @@ export function loadPrefs(): StoredPrefs {
     lowMotion: false,
     felt: DEFAULT_FELT,
     back: DEFAULT_BACK,
+    // Ligada de saída: quem joga no celular ganha a proteção sem precisar
+    // descobrir a chave, e a desliga se for atrapalho.
+    confirmPlay: true,
   };
 
   let stored: Partial<StoredPrefs>;
@@ -167,5 +175,9 @@ export function loadPrefs(): StoredPrefs {
     lowMotion: stored.lowMotion === true,
     felt: isFelt(stored.felt) ? stored.felt : fallback.felt,
     back: isBack(stored.back) ? stored.back : fallback.back,
+    // A única que não é `=== true`: o padrão dela é ligado, então quem nunca
+    // mexeu — e quem guardou os ajustes antes desta chave existir — a recebe
+    // ligada.
+    confirmPlay: stored.confirmPlay !== false,
   };
 }

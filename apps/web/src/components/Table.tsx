@@ -7,11 +7,12 @@ import {
   useState,
   type CSSProperties,
 } from "react";
+import { toCard } from "@fdp/shared";
 import type { Card, MatchStage, PeekedHand, RoundResult, TableState } from "@fdp/shared";
 import type { RoomActions, RoomConnection } from "../game/useRoomConnection";
 import { flyPlay, markLeaving, type Pose } from "../game/flights";
 import { useEmotes } from "../game/useEmotes";
-import { artUrl, scatter } from "../lib/cards";
+import { artUrl, scatter, strongestIndex } from "../lib/cards";
 import { useMediaQuery } from "../lib/useMediaQuery";
 import { useSound } from "../lib/sound";
 import { useUi } from "../store/ui";
@@ -132,7 +133,12 @@ export function Table({
    */
   const launch = (card: Card, from: Pose) => {
     const total = state.centreCount + 1;
-    const { rot, dx, dy } = scatter(total - 1, total, true);
+    // Ela só pousa neat no topo se for a maior da mesa; sob uma maior, pousa
+    // espalhada como qualquer outra. Errar isso é o pulo de uns quinze pixels
+    // que a pose exata existe para evitar.
+    const trick = [...state.centre.map(toCard), card];
+    const isTop = strongestIndex(trick, state.porcao) === trick.length - 1;
+    const { rot, dx, dy } = scatter(total - 1, total, isTop);
     flyPlay({ kind: "me", from }, { id: card.id, art: artUrl(card) }, { rot, dx, dy });
     markLeaving(card.id);
   };
@@ -317,6 +323,7 @@ export function Table({
             ref={centreRef}
             cards={state.centre}
             total={state.centreCount}
+            porcao={state.porcao}
             armed={dropArmed}
           />
 
@@ -708,14 +715,16 @@ function seatOrder(state: TableState, sessionId: string) {
 
 function useTableSounds(state: TableState, sessionId: string) {
   const play = useSound();
-  const previous = useRef({ top: "", turn: "", phase: state.phase });
+  const previous = useRef({ latest: "", turn: "", phase: state.phase });
 
   useEffect(() => {
     const before = previous.current;
-    const top = state.centre.at(-1);
+    // A ÚLTIMA baixada, que não é a de cima: o topo da pilha é a maior carta
+    // da mesa. Quem toca é a jogada, e jogada é carta nova no fim do centro.
+    const latest = state.centre.at(-1);
 
     /*
-     * Carta baixada é carta NOVA no topo do centro, e não uma pilha mais alta
+     * Carta baixada é carta NOVA no fim do centro, e não uma pilha mais alta
      * que a de antes.
      *
      * Pela altura, o primeiro a baixar numa mão nova podia sair mudo: o React
@@ -728,7 +737,7 @@ function useTableSounds(state: TableState, sessionId: string) {
      * mesa, sem esperar o eco do servidor. Tocar de novo na confirmação seria a
      * mesma carta soando duas vezes.
      */
-    if (top && top.id !== before.top && top.owner !== sessionId) play("play");
+    if (latest && latest.id !== before.latest && latest.owner !== sessionId) play("play");
     /*
      * O reparto não está aqui. A mão só cresce nele — não se compra no FDP —, e
      * ele tem batida própria em `flyDeal`, uma por carta: o efeito único que
@@ -737,7 +746,7 @@ function useTableSounds(state: TableState, sessionId: string) {
     if (state.currentPlayerId === sessionId && before.turn !== sessionId) play("turn");
     if (state.phase === "finished" && before.phase !== "finished") play("victory");
     previous.current = {
-      top: top?.id ?? "",
+      latest: latest?.id ?? "",
       turn: state.currentPlayerId,
       phase: state.phase,
     };

@@ -412,6 +412,13 @@ body {
   position: relative;
   z-index: 10;
 }
+/* A carta de pé sobe junto: levantada e ainda por baixo da vizinha seria meia
+   resposta. */
+.fdp-slot:has(.is-armed) {
+  position: relative;
+  z-index: 10;
+}
+
 /* A carta arrastada endireita e sobe acima do resto do leque. */
 .fdp-slot:has(.is-dragging) {
   --angle: 0deg;
@@ -434,6 +441,19 @@ body {
   transform: translateY(-32px) scale(1.08);
   filter: var(--fdp-shadow-hover);
 }
+/*
+ * A carta de pé, esperando o segundo toque. É o mesmo levantar do hover — a
+ * mesma altura, a mesma sombra —, porque é a mesma pergunta: "esta aqui?". O
+ * contorno é o que separa as duas: o hover passa, e isto fica até o toque
+ * seguinte responder.
+ */
+.fdp-hand .fdp-card.is-armed {
+  transform: translateY(-32px) scale(1.08);
+  filter: var(--fdp-shadow-hover);
+  outline: 2px solid var(--mark);
+  outline-offset: 2px;
+}
+
 .fdp-hand .fdp-card.is-idle {
   filter: var(--fdp-shadow-rest) grayscale(0.7) brightness(0.55);
 }
