@@ -37,8 +37,11 @@ export function EmotePicker({ onSend }: Props) {
 
   return (
     <details ref={menu} className="fdp-emotes relative">
+      {/* No celular a fileira de ações é disputada no dedo: aqui vale só o
+          balão, que já diz "conversa" sozinho. A palavra volta na tela grande,
+          onde sobra espaço e o rótulo escrito lê melhor que o desenho. */}
       <summary className="px-btn" aria-label="Falar com a mesa">
-        🙂 falar
+        💬<span className="hidden md:inline"> falar</span>
       </summary>
 
       <div className="px-slab fdp-emote-panel grid grid-cols-5 gap-1 p-2">

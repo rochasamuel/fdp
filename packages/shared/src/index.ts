@@ -227,8 +227,8 @@ export const STARTING_POINTS = 10;
 
 /**
  * O maior número de pontos que dá para combinar na criação da mesa. Mais que
- * isso é uma partida que não acaba na mesma noite — e o mostrador de pontos
- * deixa de caber na tela.
+ * isso é uma partida que não acaba na mesma noite. Cinco camadas de dez no
+ * mostrador de pontos — é até onde a fileira de casulos continua legível.
  */
 export const MAX_STARTING_POINTS = 50;
 

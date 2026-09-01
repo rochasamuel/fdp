@@ -39,6 +39,15 @@
   --mark: #c4869e;
   --mark-sh: #9e6180;
 
+  /* As camadas do mostrador de pontos, de baixo para cima: a de baixo é
+     `--mark`, e estas só aparecem em mesas de mais de dez pontos. Cores
+     distintas entre si, todas com o mesmo peso — nenhuma camada é "melhor"
+     que a outra, elas só são outra. */
+  --pip-amber: #d9a03c;
+  --pip-green: #5cae4f;
+  --pip-blue: #6f93c9;
+  --pip-violet: #a878c9;
+
   /* --- as duas tintas do baralho francês (INK em gen_card.py) --- */
   --ink-red: #d9453f;
   --ink-black: #2a2126;
@@ -1207,35 +1216,28 @@ body {
   background: var(--gloss);
 }
 
-/* Um ponto de vida. Dez deles são a sua situação inteira no começo. */
+/* Um ponto de vida. Dez deles são a sua situação inteira no começo — e, numa
+   mesa mais longa, a camada de cima da pilha. A cor vem de quem desenha o
+   casulo (`--pip`), porque é ela que diz em que camada você está. */
 .fdp-pip {
   display: inline-block;
   width: 10px;
   height: 10px;
-  background: var(--mark);
+  background: var(--pip, var(--mark));
   border: var(--stroke) solid var(--rim);
 }
 
 /* O ponto que já foi embora: o casulo continua na fileira — é ele que diz de
-   quanto se caiu — mas apagado, como uma lâmpada queimada no painel. */
+   quanto se caiu — mas apagado, como uma lâmpada queimada no painel.
+
+   Numa mesa de mais de dez pontos ele apaga na cor da camada de baixo, bem
+   fundo no feltro: dá para ver por baixo o que ainda falta descer, sem que
+   isso concorra com o que ainda está aceso. */
 .fdp-pip.is-spent {
   background: var(--slab-sh);
 }
-
-/* A mesma leitura da fileira de casulos, para quando ela não cabe: numa mesa
-   de cinquenta pontos o que se vê é o quanto ainda está aceso, e não cinquenta
-   quadradinhos que ninguém conta. */
-.fdp-pip-bar {
-  display: inline-block;
-  width: 96px;
-  height: 10px;
-  background: var(--slab-sh);
-  border: var(--stroke) solid var(--rim);
-}
-.fdp-pip-bar > span {
-  display: block;
-  height: 100%;
-  background: var(--mark);
+.fdp-pip.is-spent.has-under {
+  background: color-mix(in srgb, var(--pip-under) 30%, var(--slab-sh));
 }
 
 /* O quadro de exemplo dentro do texto: um sulco, como o campo de entrada, para

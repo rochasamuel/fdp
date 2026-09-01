@@ -804,6 +804,22 @@ const STAGE_LABEL: Record<MatchStage, string> = {
 };
 
 /**
+ * O tempo em que o Confirmar nasce surdo.
+ *
+ * Este painel aparece exatamente onde o placar da rodada acabou de sumir, e
+ * quem declara primeiro o recebe no mesmo quadro em que a tela troca. No
+ * telefone isso é uma armadilha: o toque que já estava a caminho — quem
+ * cutuca a tela esperando o placar passar — cai num Confirmar que ainda
+ * mostra o zero do começo, e a promessa mais cara do jogo sai sem ninguém ter
+ * escolhido nada. Aconteceu em rodadas seguidas com quem declarava primeiro.
+ *
+ * O remédio é o botão não aceitar o que não foi decidido: quem realmente
+ * escolheu um número leva muito mais que isto para apertar, e quem estava só
+ * cutucando a tela não perde a rodada por causa disso.
+ */
+const BID_TAP_GUARD = 450;
+
+/**
  * A promessa: quantas vazas você diz que vai fazer.
  *
  * Um contador em vez de uma botoeira: com dez cartas na mão a fileira de
@@ -828,6 +844,12 @@ function PromisePanel({
 }) {
   // Começa no primeiro número que dá para confirmar — zero, quase sempre.
   const [value, setValue] = useState(() => (options.includes(0) ? 0 : (options[0] ?? 0)));
+  // Ver `BID_TAP_GUARD`: o botão só passa a ouvir depois que o painel assentou.
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setReady(true), BID_TAP_GUARD);
+    return () => clearTimeout(timer);
+  }, []);
   /*
    * O aviso é um balão que fica de pé enquanto o número recusado estiver no
    * mostrador: ele não é um recado que passa, é o motivo de o Confirmar não
@@ -916,6 +938,7 @@ function PromisePanel({
         <button
           type="button"
           className={`px-btn w-full md:w-auto ${allowed ? "px-btn-primary" : ""}`}
+          disabled={!ready}
           onClick={confirm}
         >
           Confirmar
