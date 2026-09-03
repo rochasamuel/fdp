@@ -114,7 +114,7 @@ export function SpyPeek({ name, cards }: Props) {
           setOpen((was) => !was);
         }}
       >
-        👁 <b>{cards.length}</b>
+        👀 <b>{cards.length}</b>
       </button>
 
       {open &&
