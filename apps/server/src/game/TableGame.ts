@@ -712,9 +712,19 @@ export class TableGame {
     return { cards: [], hiddenIds: player.hand.map((card) => card.id) };
   }
 
-  /** As mãos dos ADVERSÁRIOS, que na rodada às cegas são abertas para todos. */
+  /**
+   * As mãos dos ADVERSÁRIOS, abertas para você.
+   *
+   * Dois casos, e o mesmo envelope: a rodada às cegas, em que todo mundo vê a
+   * mão de todo mundo menos a sua, e quem já saiu da mesa — para ele a partida
+   * virou uma partida assistida, e a informação escondida não protege mais
+   * nada. Quem está fora não joga, não canta e não tem como contar o que vê
+   * para dentro do jogo: o segredo só existia contra a mão dele.
+   */
   peekedHands(playerId: string): PeekedHand[] {
-    if (!this.blind || this.phase !== "playing") return [];
+    if (this.phase !== "playing") return [];
+    const spectating = this.players.find((p) => p.id === playerId)?.eliminated ?? false;
+    if (!this.blind && !spectating) return [];
     return this.active
       .filter((player) => player.id !== playerId && player.hand.length > 0)
       .map((player) => ({ playerId: player.id, cards: player.hand }));

@@ -1112,6 +1112,82 @@ body {
   text-shadow: 1px 1px 0 var(--rim);
 }
 
+/* ---- o olho de quem assiste ---------------------------------------------
+ * Quem saiu da mesa continua olhando, e para ele a mão dos outros já não é
+ * segredo de nada. O olho vive no assento; o painel dele vive no body, porque
+ * a cadeira da mesa redonda é posicionada por `transform` e um painel fixo
+ * dentro dela mediria a cadeira em vez da janela. Ver `SpyPeek.tsx`.
+ * ------------------------------------------------------------------------- */
+
+.fdp-eye {
+  font: inherit;
+  font-size: 11px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  color: var(--paper-sh);
+  background: var(--slab-hi);
+  border: var(--stroke) solid var(--rim);
+  box-shadow: var(--bevel);
+  cursor: pointer;
+}
+.fdp-eye:hover {
+  color: var(--paper-hi);
+  background: var(--gloss);
+}
+/* Aberto, o olho fica marcado: com vários painéis no ar ao mesmo tempo, é o
+   assento que diz de quem é cada um. */
+.fdp-eye.is-open {
+  color: var(--ink);
+  background: var(--mark);
+}
+
+/* O painel. `fixed` porque ele não é do assento: é da janela, e é isso que o
+   deixa passar por cima de qualquer borda em vez de ser recortado por ela. A
+   posição vem do JavaScript, já presa dentro da tela. */
+.fdp-spy {
+  position: fixed;
+  /* acima da mesa e da camada de voo (30), abaixo do fim de partida (40) */
+  z-index: 36;
+  width: max-content;
+  max-width: 420px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* A mão inteira, em fileiras. Sem sobreposição: aqui não se joga, se LÊ — e o
+   leque que economiza espaço é o leque que esconde metade de cada carta. */
+.fdp-spy-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: center;
+}
+
+.fdp-spy-card {
+  width: calc(var(--fdp-card-base) * 0.46);
+  aspect-ratio: 2 / 3;
+  display: block;
+  position: relative;
+  filter: var(--fdp-shadow-rest);
+  transition:
+    transform 0.18s var(--fdp-ease),
+    filter 0.18s var(--fdp-ease);
+}
+
+/* A lupa: a carta cresce no lugar, por cima das vizinhas. A folga que ela
+   precisa para não terminar cortada pela janela é reservada pelo próprio
+   painel, na conta de posição — ver `SpyPeek.tsx`. */
+.fdp-spy-card:hover {
+  transform: scale(2);
+  filter: var(--fdp-shadow-hover);
+  z-index: 1;
+}
+
 /* O aviso da rodada às cegas, preso ao alto da mesa. */
 .fdp-banner {
   position: fixed;
@@ -1367,6 +1443,7 @@ body {
 .motion-off {
   .fdp-card,
   .fdp-peek,
+  .fdp-spy-card,
   .fdp-slot {
     transition: none;
   }

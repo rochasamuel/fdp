@@ -611,6 +611,37 @@ describe("a eliminação", () => {
     expect(game.active.map((p) => p.id)).toEqual(["p1", "p2"]);
   });
 
+  /*
+   * Quem saiu não joga mais, e por isso pode ver: a mão fechada só existia
+   * contra a mão dele. É o que deixa a mesa continuar interessante para quem
+   * ficou olhando — e é a mesma tubulação da rodada às cegas.
+   */
+  it("abre a mão de quem ficou para quem já saiu da mesa", () => {
+    const game = started(3);
+    game.players.find((p) => p.id === "p0")!.points = 1;
+
+    playRound(
+      game,
+      {
+        p0: [card("spades", "5")],
+        p1: [card("spades", "6")],
+        p2: [card("clubs", "4")],
+      },
+      { p1: 0, p2: 1, p0: 1 },
+    );
+    game.resume(); // placar -> eliminação
+    game.resume(); // eliminação -> rodada seguinte
+    expect(game.players.find((p) => p.id === "p0")!.eliminated).toBe(true);
+    expect(game.blind).toBe(false);
+
+    const peek = game.peekedHands("p0");
+    expect(peek.map((seat) => seat.playerId).sort()).toEqual(["p1", "p2"]);
+    for (const seat of peek) expect(seat.cards).toHaveLength(game.cardsPerPlayer);
+
+    // E para quem continua jogando nada mudou: a mão dos outros segue fechada.
+    expect(game.peekedHands("p1")).toEqual([]);
+  });
+
   it("nunca deixa a pontuação ficar negativa", () => {
     const game = started(4);
     playRoundWith(game, {}); // rodada 1

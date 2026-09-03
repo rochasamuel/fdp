@@ -68,6 +68,11 @@ export function MockScreen() {
   const [stage, setStage] = useState<MatchStage>("playing_trick");
   /** A rodada às cegas, que troca o leque inteiro por versos. */
   const [blind, setBlind] = useState(false);
+  /**
+   * Você já saiu da mesa: sem leque, sem promessa, e com a mão de quem ficou
+   * aberta atrás do olho de cada assento. Ver `SpyPeek`.
+   */
+  const [spectating, setSpectating] = useState(false);
   /** As regras da casa, que na mesa de verdade se escolhem na criação. */
   const [cangar, setCangar] = useState(false);
   const [porcao, setPorcao] = useState(false);
@@ -104,7 +109,7 @@ export function MockScreen() {
       // promessas, e é o estado em que o "?" aparece no assento.
       promise: stage === "making_promises" && i === playerCount - 1 ? -1 : i % 3,
       tricks: i % 2,
-      eliminated: i === 5,
+      eliminated: i === 5 || (spectating && i === 0),
     }));
 
     const centre: PublicCard[] = Array.from({ length: Math.min(4, playerCount) }, (_, i) =>
@@ -161,7 +166,7 @@ export function MockScreen() {
               eliminated: i === 5,
             })),
     };
-  }, [blind, cangar, finished, hand.length, playerCount, porcao, stage]);
+  }, [blind, cangar, finished, hand.length, playerCount, porcao, spectating, stage]);
 
   // Metade das cartas jogáveis, para ver as duas aparências no mesmo leque.
   const playableIds = useMemo(
@@ -228,15 +233,24 @@ export function MockScreen() {
       <Table
         state={state}
         sessionId={ME}
-        hand={blind ? [] : hand}
-        hiddenIds={blind ? hand.slice(0, 1).map((card) => card.id) : []}
+        hand={blind || spectating ? [] : hand}
+        hiddenIds={blind && !spectating ? hand.slice(0, 1).map((card) => card.id) : []}
         peek={
-          blind
+          /* Assistindo, o envelope é o mesmo da rodada às cegas — só que com a
+             mão INTEIRA de cada um, que é o que a mesa põe atrás do olho. */
+          spectating
             ? state.players
                 .filter((player) => player.id !== ME && !player.eliminated)
-                .slice(0, 4)
-                .map((player, i) => ({ playerId: player.id, cards: [fakeCard(i + 70)] }))
-            : []
+                .map((player, i) => ({
+                  playerId: player.id,
+                  cards: Array.from({ length: 5 }, (_, n) => fakeCard(i * 7 + n + 70)),
+                }))
+            : blind
+              ? state.players
+                  .filter((player) => player.id !== ME && !player.eliminated)
+                  .slice(0, 4)
+                  .map((player, i) => ({ playerId: player.id, cards: [fakeCard(i + 70)] }))
+              : []
         }
         promises={
           stage === "making_promises"
@@ -306,6 +320,11 @@ export function MockScreen() {
               label="Rodada às cegas"
               on={blind}
               onClick={() => setBlind((v) => !v)}
+            />
+            <Toggle
+              label="Assistindo (fora da partida)"
+              on={spectating}
+              onClick={() => setSpectating((v) => !v)}
             />
             <Toggle label="Cangar" on={cangar} onClick={() => setCangar((v) => !v)} />
             <Toggle label="Porcão" on={porcao} onClick={() => setPorcao((v) => !v)} />

@@ -3,6 +3,7 @@ import { anchorRef } from "../game/flights";
 import type { Bubble } from "../game/useEmotes";
 import { artUrl, cardOnSlab, cardShort } from "../lib/cards";
 import { EmoteBubble } from "./EmoteBubble";
+import { SpyPeek } from "./SpyPeek";
 
 type Props = {
   player: PublicPlayer;
@@ -20,6 +21,12 @@ type Props = {
    * menos a sua.
    */
   peek?: Card[];
+  /**
+   * A mão dele para quem ASSISTE — quem já saiu da mesa. Diferente do `peek`,
+   * ela não fica exposta no assento: é a mão inteira, e desenhá-la em cada
+   * assento sepultaria a mesa. Fica atrás de um olho. Ver `SpyPeek`.
+   */
+  spy?: Card[];
   /** O que ele está dizendo agora, enquanto o balão dura. */
   bubble?: Bubble;
 };
@@ -32,6 +39,7 @@ export function PlayerSeat({
   wonTrick,
   bidding,
   peek,
+  spy,
   bubble,
 }: Props) {
   // Está em cima da promessa agora. Verde não quer dizer bom para VOCÊ: quer
@@ -129,6 +137,10 @@ export function PlayerSeat({
         </span>
       )}
       {player.eliminated && <span className="fdp-score">fora da partida</span>}
+
+      {/* O olho de quem assiste. Só ele o vê, e ele vê o de todos os que
+          continuam de pé. */}
+      {spy && spy.length > 0 && <SpyPeek name={player.name} cards={spy} />}
 
       {/*
         A mão dele, aberta: só acontece na rodada às cegas, e a rodada às cegas

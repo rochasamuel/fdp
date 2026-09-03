@@ -106,6 +106,20 @@ export function Table({
     [peek],
   );
   /*
+   * Você está ASSISTINDO: saiu da mesa e a partida continua sem você. O
+   * servidor abre a mão de quem ficou — ver `peekedHands` —, e aqui essa mão
+   * troca de lugar: em vez de ficar exposta no assento, como na rodada às
+   * cegas, ela vai para trás do olho de cada assento. São mãos inteiras, e
+   * dez delas abertas ao mesmo tempo não são uma mesa.
+   *
+   * O olho é só no computador, e por enquanto: o painel é flutuante ao lado do
+   * assento, e no celular o assento é uma faixa de duas linhas sem lado nenhum
+   * de sobra. Assistindo do celular a mão dos outros não aparece — mas ela
+   * também não volta para dentro do assento, que é onde ela viraria dez
+   * fileiras de cartas no lugar da mesa.
+   */
+  const spectating = !!you?.eliminated && state.phase === "playing";
+  /*
    * O leque, com as escondidas no fim. A carta escondida entra como uma posição
    * SEM carta: ela existe, é jogável, e a tela não sabe qual é — que é
    * exatamente o que o servidor mandou.
@@ -314,7 +328,8 @@ export function Table({
                   isDealer={player.id === state.dealerId}
                   wonTrick={player.id === state.lastTrickWinnerId && state.centreCount > 0}
                   bidding={bidding}
-                  peek={peekBySeat[player.id]}
+                  peek={spectating ? undefined : peekBySeat[player.id]}
+                  spy={spectating && wide ? peekBySeat[player.id] : undefined}
                   bubble={bubbles[player.id]}
                 />
               </span>
