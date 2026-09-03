@@ -416,16 +416,69 @@ body {
 .fdp-slot:last-child {
   margin-right: 0;
 }
+/*
+ * `:has(:focus-visible)` e não `:focus-within`: o botão fica com o foco depois
+ * de um clique de mouse, e com o `:focus-within` a carta que acabou de ser
+ * arrastada ficava por cima do leque inteiro até alguém clicar noutro lugar —
+ * exatamente a carta cujo lugar novo se está tentando ver. Quem precisa da
+ * carta levantada é quem chegou nela pelo Tab, e é isso que o `:focus-visible`
+ * quer dizer.
+ */
 .fdp-slot:hover,
-.fdp-slot:focus-within {
+.fdp-slot:has(:focus-visible) {
   position: relative;
   z-index: 10;
+}
+
+/*
+ * O instante logo depois da soltura: a carta cai no lugar novo com o ponteiro
+ * ainda em cima dela, e o realce de hover a levantaria de volta para cima de
+ * todas — a resposta do gesto tapada pelo próprio ponteiro que a pediu. O
+ * leque suspende o hover até a mão se mexer de novo. Ver `justDropped` no
+ * `Hand`.
+ */
+.fdp-hand.is-settling .fdp-slot:hover {
+  z-index: auto;
+}
+.fdp-hand.is-settling .fdp-card:hover {
+  transform: translate(var(--drag-x, 0px), var(--drag-y, 0px));
 }
 /* A carta de pé sobe junto: levantada e ainda por baixo da vizinha seria meia
    resposta. */
 .fdp-slot:has(.is-armed) {
   position: relative;
   z-index: 10;
+}
+
+/*
+ * Onde a carta vai cair, dita ANTES de soltar: um lugar aberto no leque com a
+ * silhueta da própria carta dentro. Sem isto o gesto é às cegas — a carta
+ * arrastada sobe acima de todas e tapa justamente a vizinha que responderia a
+ * pergunta.
+ *
+ * A silhueta entra deitada e sem sombra: ela não disputa com as cartas de
+ * verdade, e o contorno pontilhado diz que ali é um lugar reservado e não uma
+ * carta a mais na mão.
+ */
+.fdp-slot.is-ghost {
+  position: relative;
+  z-index: 4;
+  animation: fdp-ghost-in 0.14s var(--fdp-ease);
+}
+.fdp-ghost {
+  filter: none;
+  opacity: 0.45;
+}
+.fdp-ghost img {
+  filter: grayscale(1) contrast(0.6) brightness(0.85);
+  outline: 2px dashed var(--mark);
+  outline-offset: -4px;
+}
+@keyframes fdp-ghost-in {
+  from {
+    opacity: 0;
+    transform: rotate(var(--angle, 0deg)) translateY(var(--drop-y, 0px)) scale(0.9);
+  }
 }
 
 /* A carta arrastada endireita e sobe acima do resto do leque. */

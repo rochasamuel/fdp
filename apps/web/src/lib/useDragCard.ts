@@ -1,6 +1,9 @@
 import { useRef, type PointerEvent, type RefObject } from "react";
 import { poseOfCard, type Pose } from "../game/flights";
 
+/** Onde o ponteiro está, na janela. */
+export type Point = { x: number; y: number };
+
 /**
  * Abaixo disto o gesto ainda é um clique, não um arraste. Cinco pixels era
  * pouco: um clique comum treme mais que isso, e o gesto virava um arraste que
@@ -8,6 +11,13 @@ import { poseOfCard, type Pose } from "../game/flights";
  * travada. Vinte e quatro é o bastante para separar a intenção.
  */
 const CLICK_SLOP = 24;
+
+/**
+ * O ponto que não é ponto nenhum: o gesto acabou e não há mais ponteiro em
+ * cima de coisa alguma. Fora da tela em vez de nulo para o `onOver` ter sempre
+ * um ponto para ler.
+ */
+const OFFSCREEN: Point = { x: -1, y: -1 };
 
 /**
  * Pointer Events instead of HTML5 drag-and-drop: the native drag image is a
@@ -25,9 +35,13 @@ export function useDragCard(
    * `dragged` separa os dois gestos que chegam aqui. Levar a carta até a pilha
    * é deliberado — não escapa do dedo —, e é por isso que a confirmação do
    * celular vale só para o toque. Ver `needsConfirm` no `Hand`.
+   *
+   * `at` é onde o ponteiro estava quando soltou. Quem a usa é o leque: soltar
+   * FORA do descarte não joga, e é aí que a carta troca de lugar na mão — o
+   * ponto diz em cima de qual vizinha ela caiu. Ver `useReorder` no `Hand`.
    */
-  onDrop: (hit: boolean, from: Pose, dragged: boolean) => void,
-  onOver?: (hit: boolean) => void,
+  onDrop: (hit: boolean, from: Pose, dragged: boolean, at: Point) => void,
+  onOver?: (hit: boolean, at: Point) => void,
 ) {
   const origin = useRef<{ x: number; y: number } | null>(null);
   const moved = useRef(false);
@@ -46,7 +60,7 @@ export function useDragCard(
     origin.current = null;
     element.classList.remove("is-dragging");
     offset(element, 0, 0);
-    onOver?.(false);
+    onOver?.(false, OFFSCREEN);
   };
 
   return {
@@ -67,7 +81,10 @@ export function useDragCard(
       // Written straight to the style: one setState per pointermove would be
       // 60+ React renders a second to move one card.
       offset(event.currentTarget, dx, dy);
-      onOver?.(moved.current && isOverTarget(event.clientX, event.clientY));
+      onOver?.(moved.current && isOverTarget(event.clientX, event.clientY), {
+        x: event.clientX,
+        y: event.clientY,
+      });
     },
 
     onPointerUp(event: PointerEvent<HTMLElement>) {
@@ -75,12 +92,17 @@ export function useDragCard(
       const element = event.currentTarget;
       const dropped = moved.current;
       const hit = isOverTarget(event.clientX, event.clientY);
+      const at = { x: event.clientX, y: event.clientY };
       const from = poseOfCard(element);
-      // Removing the class restores the transition, so the card animates back.
-      cancel(element);
       // Arraste de verdade só joga se soltar no descarte. Gesto curto é
       // clique, e clique joga — quem usa teclado nunca vai arrastar.
-      onDrop(dropped ? hit : true, from, dropped);
+      //
+      // ANTES do `cancel`, e não depois: é o `cancel` que avisa o leque de que
+      // o gesto acabou, e quem decide para onde a carta vai precisa da resposta
+      // que estava na tela no instante em que a mão soltou.
+      onDrop(dropped ? hit : true, from, dropped, at);
+      // Removing the class restores the transition, so the card animates back.
+      cancel(element);
     },
 
     // The browser cancels the pointer on its own (system gesture, incoming

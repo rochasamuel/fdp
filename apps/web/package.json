@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "pnpm --filter @fdp/shared build && tsc -b && vite build",
     "preview": "vite preview",
-    "lint": "oxlint"
+    "lint": "oxlint",
+    "test": "vitest run"
   },
   "dependencies": {
     "@colyseus/sdk": "^0.17.43",
@@ -26,6 +27,7 @@
     "oxlint": "^1.75.0",
     "tailwindcss": "^4.3.3",
     "typescript": "~5.9.3",
-    "vite": "^8.2.1"
+    "vite": "^8.2.1",
+    "vitest": "^4.1.11"
   }
 }

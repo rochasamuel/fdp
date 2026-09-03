@@ -14,10 +14,13 @@
     "build": "pnpm -r build",
     "build:web": "pnpm --filter=web... build",
     "build:server": "pnpm --filter=server... build",
-    "test": "pnpm --filter server test",
+    "test": "pnpm -r test",
     "lint": "pnpm --filter web lint"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["esbuild", "msgpackr-extract"]
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "msgpackr-extract"
+    ]
   }
 }

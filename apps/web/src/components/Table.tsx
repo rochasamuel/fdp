@@ -18,6 +18,7 @@ import { useSound } from "../lib/sound";
 import { useUi } from "../store/ui";
 import { CentrePile } from "./CentrePile";
 import { ConfigMenu } from "./ConfigMenu";
+import { useHandOrder } from "../game/useHandOrder";
 import { DrawPile } from "./DrawPile";
 import { EmoteBubble } from "./EmoteBubble";
 import { EmotePicker } from "./EmotePicker";
@@ -131,6 +132,13 @@ export function Table({
     ],
     [hand, hiddenIds],
   );
+  /*
+   * A ordem em que VOCÊ deixou as cartas — arrastando uma para o lado ou
+   * pedindo o leque ordenado por força. Mora aqui porque os dois lugares que a
+   * mexem penduram nesta tela: o leque, logo abaixo, e os ajustes, lá no
+   * cabeçalho. Nada disso atravessa a rede.
+   */
+  const handOrder = useHandOrder(entries);
   const seats = seatOrder(state, sessionId);
   const [seatRow, lineStarts, seatBox] = useSeatRow(seats.length, ring);
   // Só muda quando a mesa muda de tamanho ou de gente.
@@ -263,7 +271,7 @@ export function Table({
             maxCards={state.maxCards}
             startingPoints={state.startingPoints}
           />
-          <ConfigMenu wide={wide} />
+          <ConfigMenu wide={wide} onSortHand={handOrder.sort} />
           <button
             type="button"
             onClick={toggleSound}
@@ -467,6 +475,8 @@ export function Table({
           dropTarget={centreRef}
           onPlay={play}
           onDragOver={setDropArmed}
+          order={handOrder.order}
+          onReorder={handOrder.move}
         />
       </div>
 

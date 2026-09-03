@@ -3,8 +3,15 @@ import { BACKS, backUrl } from "../lib/cards";
 import { FELTS } from "../lib/felt";
 import { useMediaQuery } from "../lib/useMediaQuery";
 import { useUi } from "../store/ui";
+import type { SortDirection } from "../game/handOrder";
 
 type Props = {
+  /**
+   * Arrumar o leque por força, agora. É uma AÇÃO e não um modo: as cartas
+   * compradas depois disto entram no fim, como sempre entraram, e arrastar uma
+   * carta para o lado continua valendo. Ver `useHandOrder`.
+   */
+  onSortHand?: (direction: SortDirection) => void;
   /**
    * Se a janela é grande o bastante para a mesa redonda. A chave dela só
    * aparece onde ela funciona: oferecê-la num celular seria oferecer um botão
@@ -24,7 +31,7 @@ type Props = {
  * Mecânica de `<details>` pendurado na barra do cabeçalho, com `name`: abrir um
  * fecha o outro, senão dois painéis caem no mesmo canto, um por cima do outro.
  */
-export function ConfigMenu({ wide }: Props) {
+export function ConfigMenu({ wide, onSortHand }: Props) {
   const seatLayout = useUi((ui) => ui.seatLayout);
   const setSeatLayout = useUi((ui) => ui.setSeatLayout);
   const lowMotion = useUi((ui) => ui.lowMotion);
@@ -102,6 +109,36 @@ export function ConfigMenu({ wide }: Props) {
             ))}
           </div>
         </div>
+
+        {/*
+          Dois botões e não uma chave: a ordenação acontece e acaba. Uma chave
+          prometeria um leque que se mantém ordenado, e o que ela faz é arrumar
+          as cartas uma vez — a diferença apareceria na primeira compra.
+        */}
+        {onSortHand && (
+          <div className="flex flex-col gap-2">
+            <span className="px-label">Ordenar cartas</span>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className="px-link text-sm"
+                onClick={() => onSortHand("desc")}
+              >
+                mais forte primeiro
+              </button>
+              <button
+                type="button"
+                className="px-link text-sm"
+                onClick={() => onSortHand("asc")}
+              >
+                mais fraca primeiro
+              </button>
+            </div>
+            <span className="text-xs" style={{ color: "var(--paper-sh)" }}>
+              Arruma o leque agora. As cartas compradas depois entram no fim.
+            </span>
+          </div>
+        )}
 
         {wide && (
           <Switch
