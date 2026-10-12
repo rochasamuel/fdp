@@ -444,6 +444,14 @@ export function Table({
             />
           )}
 
+          {/* A sua promessa, com a mesma pastilha que os assentos mostram para
+              os outros: você não tem assento, então ela pende do leque. */}
+          {bidding && you && !you.eliminated && you.promise >= 0 && (
+            <b key={you.promise} className="fdp-call px-pop">
+              faço {you.promise}
+            </b>
+          )}
+
           {!yourBid && bidding && (
             <p className="px-label">Esperando as promessas<span className="px-caret">▌</span></p>
           )}

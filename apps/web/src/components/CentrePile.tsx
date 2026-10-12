@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { cardLabel, toCard, type PublicCard } from "@fdp/shared";
 import { anchorRef, useFlightStore } from "../game/flights";
 import { artUrl, scatter, strongestIndex } from "../lib/cards";
@@ -13,7 +13,22 @@ import { artUrl, scatter, strongestIndex } from "../lib/cards";
  * O topo é a MAIOR carta da mesa, e não a última baixada: a pilha é o retrato
  * de quem está ganhando a vaza. Carta que entra por cima da maior passa por
  * baixo dela, o que é justamente o que a jogada significa.
+ *
+ * Só que, entrando por baixo, a carta some no mesmo instante em que pousa — e
+ * ninguém chega a ver o que foi descartado. Por isso a recém-chegada fica por
+ * cima de tudo durante `SPOTLIGHT_MS`, na mesma pose, e só então é enfiada
+ * debaixo da maior: sai para baixo, passa por trás e volta à pose de repouso
+ * (`fdp-tuck` no index.css). Começa e termina no mesmo lugar, então o pouso
+ * continua sendo o pouso.
  */
+
+/** Quanto tempo a carta recém-baixada fica à mostra antes de ir para baixo. */
+const SPOTLIGHT_MS = 800;
+/** A volta por trás da maior. O mesmo número da animação `fdp-tuck`. */
+const TUCK_MS = 420;
+
+/** A recém-chegada: parada por cima de tudo, ou a caminho de baixo. */
+type Spotlight = { id: string; phase: "shown" | "tucking" } | null;
 
 type Props = {
   /** A ponta visível da pilha, da mais antiga para a mais recente. */
@@ -51,6 +66,36 @@ export function CentrePile({ cards, total, porcao, armed, ref }: Props) {
     seen.current = total;
   }, [total]);
 
+  /*
+   * A recém-chegada só conta depois de pousar: enquanto voa, a última carta da
+   * pilha não está à mostra, e o relógio não pode começar com ela no ar.
+   * `useLayoutEffect` para que ela nunca seja pintada um quadro por baixo antes
+   * de subir.
+   */
+  const last = cards.at(-1);
+  const newestId = last && !airborne.has(last.id) ? last.id : undefined;
+  const lastNewest = useRef(newestId);
+  const [spotlight, setSpotlight] = useState<Spotlight>(null);
+  const spotlightTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  useLayoutEffect(() => {
+    if (newestId === lastNewest.current) return;
+    lastNewest.current = newestId;
+    // Uma carta nova interrompe a anterior: ela vai direto para a pose de
+    // repouso, por baixo, sem terminar a volta.
+    spotlightTimers.current.forEach(clearTimeout);
+    // A maior já fica por cima de qualquer jeito: destacá-la não mostraria nada.
+    if (!newestId || newestId === topId) return setSpotlight(null);
+    const id = newestId;
+    setSpotlight({ id, phase: "shown" });
+    spotlightTimers.current = [
+      setTimeout(() => setSpotlight({ id, phase: "tucking" }), SPOTLIGHT_MS),
+      setTimeout(() => setSpotlight(null), SPOTLIGHT_MS + TUCK_MS),
+    ];
+  }, [newestId, topId]);
+
+  useEffect(() => () => spotlightTimers.current.forEach(clearTimeout), []);
+
   // Um elemento, dois papéis: alvo do arrasto (o Table precisa medi-lo) e
   // âncora dos voos. Cada um quer a sua própria ref.
   const attach = useCallback(
@@ -73,10 +118,13 @@ export function CentrePile({ cards, total, porcao, armed, ref }: Props) {
         const index = base + offset;
         const isTop = card.id === topId;
         const { rot, dx, dy } = scatter(index, total, isTop);
+        const lit = spotlight?.id === card.id ? spotlight.phase : null;
         return (
           <img
             key={index}
-            className={`fdp-card ${index >= seen.current ? "is-dealt" : ""}`}
+            className={`fdp-card ${index >= seen.current ? "is-dealt" : ""} ${
+              lit === "tucking" ? "is-tucking" : ""
+            }`}
             src={artUrl(toCard(card))}
             alt={isTop ? cardLabel(toCard(card)) : ""}
             style={
@@ -84,7 +132,9 @@ export function CentrePile({ cards, total, porcao, armed, ref }: Props) {
                 "--rot": `${rot}deg`,
                 "--dx": `${dx}%`,
                 "--dy": `${dy}%`,
-                zIndex: isTop ? 2 : undefined,
+                // Na volta, quem troca a camada é a própria animação, no meio
+                // do caminho — ver `fdp-tuck`.
+                zIndex: lit === "shown" ? 3 : isTop ? 2 : undefined,
               } as React.CSSProperties
             }
           />

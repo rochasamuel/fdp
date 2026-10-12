@@ -591,6 +591,32 @@ body {
   animation: fdp-dealt 0.24s var(--fdp-ease);
 }
 
+/* A recém-baixada indo para debaixo da maior (ver CentrePile): sai para baixo
+   ainda por cima de tudo, troca de camada lá fora — onde não há ninguém para
+   atravessar — e volta por trás até a pose de repouso. O z-index anima em
+   degrau, e é ele que faz o "por trás"; os 420ms são o TUCK_MS. */
+@keyframes fdp-tuck {
+  0% {
+    z-index: 3;
+    transform: translate(var(--dx, 0px), var(--dy, 0px)) rotate(var(--rot, 0deg));
+  }
+  45% {
+    z-index: 3;
+    transform: translate(calc(var(--dx, 0px) + 18%), calc(var(--dy, 0px) + 62%))
+      rotate(calc(var(--rot, 0deg) + 9deg)) scale(0.96);
+  }
+  50% {
+    z-index: 1;
+  }
+  100% {
+    z-index: 1;
+    transform: translate(var(--dx, 0px), var(--dy, 0px)) rotate(var(--rot, 0deg));
+  }
+}
+.fdp-centre .is-tucking {
+  animation: fdp-tuck 420ms var(--fdp-ease);
+}
+
 .fdp-drop-zone {
   transition: transform 0.18s var(--fdp-ease);
 }
@@ -1508,6 +1534,7 @@ body {
   .fdp-flight,
   .fdp-flight-arc,
   .fdp-centre .is-dealt,
+  .fdp-centre .is-tucking,
   .fdp-card.is-new,
   .px-caret,
   .px-btn-urgent,

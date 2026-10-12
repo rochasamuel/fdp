@@ -66,6 +66,12 @@ export function MockScreen() {
   const [finished, setFinished] = useState(false);
   /** A etapa da partida em exibição: cada uma pede uma tela diferente. */
   const [stage, setStage] = useState<MatchStage>("playing_trick");
+  /**
+   * A sua promessa nas `making_promises`. -1 é "ainda não declarou", como no
+   * servidor: escolher um número a grava e passa a vez, em vez de pular a
+   * etapa — senão o "faço X" do leque nunca chegaria a aparecer aqui.
+   */
+  const [myPromise, setMyPromise] = useState(-1);
   /** A rodada às cegas, que troca o leque inteiro por versos. */
   const [blind, setBlind] = useState(false);
   /**
@@ -82,12 +88,13 @@ export function MockScreen() {
   /** A volta da roleta em exibição, se houver uma. */
   const [draft, setDraft] = useState<{ round: number; winnerId: string } | null>(null);
 
+  const dealt = useMemo(
+    () => Array.from({ length: handSize }, (_, i) => fakeCard(i + nudge * 100)),
+    [handSize, nudge],
+  );
   const hand = useMemo(
-    () =>
-      Array.from({ length: handSize }, (_, i) => fakeCard(i + nudge * 100)).filter(
-        (card) => !played.includes(card.id),
-      ),
-    [handSize, nudge, played],
+    () => dealt.filter((card) => !played.includes(card.id)),
+    [dealt, played],
   );
 
   /** Trocar o tamanho da mão reparte de novo — o que já saiu volta. */
@@ -107,14 +114,29 @@ export function MockScreen() {
       overshoot: i === 5 ? -2 : [10, 8, 3, 1, 7, 5, 9, 2, 6, 4][i % 10],
       // O último ainda não declarou: é assim que a mesa fica no meio das
       // promessas, e é o estado em que o "?" aparece no assento.
-      promise: stage === "making_promises" && i === playerCount - 1 ? -1 : i % 3,
+      promise:
+        stage !== "making_promises"
+          ? i % 3
+          : i === 0
+            ? myPromise
+            : i === playerCount - 1
+              ? -1
+              : i % 3,
       tricks: i % 2,
       eliminated: i === 5 || (spectating && i === 0),
     }));
 
-    const centre: PublicCard[] = Array.from({ length: Math.min(4, playerCount) }, (_, i) =>
-      toPublic(fakeCard(i + 40), i === 0 ? ME : `p${i}`),
-    );
+    // O que você joga entra por cima das de mentira, como entraria na mesa de
+    // verdade — é o que deixa revisar o pouso, a pausa e a ida para baixo.
+    const centre: PublicCard[] = [
+      ...Array.from({ length: Math.min(4, playerCount) }, (_, i) =>
+        toPublic(fakeCard(i + 40), i === 0 ? ME : `p${i}`),
+      ),
+      ...played.flatMap((id) => {
+        const card = dealt.find((item) => item.id === id);
+        return card ? [toPublic(card, ME)] : [];
+      }),
+    ];
 
     return {
       roomName: "Sexta-feira FDP",
@@ -122,7 +144,8 @@ export function MockScreen() {
       phase: finished ? "finished" : "playing",
       maxPlayers: 10,
       players,
-      currentPlayerId: ME,
+      // Depois de declarar, a vez passa adiante e o painel some.
+      currentPlayerId: stage === "making_promises" && myPromise >= 0 ? "p1" : ME,
       // Sem sorteio em curso: em /mock a roleta é um botão da barra lateral.
       starterId: "",
       deckCount: 34,
@@ -166,7 +189,7 @@ export function MockScreen() {
               eliminated: i === 5,
             })),
     };
-  }, [blind, cangar, finished, hand.length, playerCount, porcao, spectating, stage]);
+  }, [blind, cangar, dealt, finished, hand.length, myPromise, played, playerCount, porcao, spectating, stage]);
 
   // Metade das cartas jogáveis, para ver as duas aparências no mesmo leque.
   const playableIds = useMemo(
@@ -197,7 +220,7 @@ export function MockScreen() {
     // A jogada já sai voando pela própria Table, que é quem conhece a carta e o
     // ponto de onde ela partiu. Aqui só falta tirá-la da mão.
     play: (cardId) => setPlayed((ids) => [...ids, cardId]),
-    promise: () => setStage("playing_trick"),
+    promise: (n) => setMyPromise(n),
     emote: (emote) => {
       for (const handler of emoteHandlers.current) handler({ by: ME, emote });
     },
@@ -308,7 +331,10 @@ export function MockScreen() {
               <select
                 className="px-input"
                 value={stage}
-                onChange={(event) => setStage(event.target.value as MatchStage)}
+                onChange={(event) => {
+                  setStage(event.target.value as MatchStage);
+                  setMyPromise(-1);
+                }}
               >
                 <option value="making_promises">promessas</option>
                 <option value="playing_trick">jogando a mão</option>
