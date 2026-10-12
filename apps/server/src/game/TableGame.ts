@@ -1,6 +1,7 @@
 import {
   DEFAULT_HOUSE_RULES,
   ELIMINATION_LINGER,
+  MATCH_STARTED,
   MIN_PLAYERS,
   PORCAO,
   PORCAO_ARMED,
@@ -189,7 +190,7 @@ export class TableGame {
   /* ------------------------------------------------------------- a mesa */
 
   addPlayer(id: string, key: string, name: string) {
-    if (this.phase !== "lobby") throw new GameError("A partida já começou.");
+    if (this.phase !== "lobby") throw new GameError(MATCH_STARTED);
     if (this.players.some((p) => p.id === id)) return;
     this.players.push({
       id,

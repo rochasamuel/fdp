@@ -471,9 +471,17 @@ export function Table({
             </p>
           )}
 
+          {/* Quem só assiste não tem cadeira na roda: chegou com a partida
+              rolando, e o que lhe cabe é olhar. Nem leque, nem voz. */}
+          {!you && (
+            <p className="px-label">
+              👁 assistindo a partida
+            </p>
+          )}
+
           {/* Falar vale sempre: fora da sua vez e depois de a partida acabar.
               É a única coisa na mesa que nunca depende de estado nenhum. */}
-          <EmotePicker onSend={actions.emote} />
+          {you && <EmotePicker onSend={actions.emote} />}
         </div>
 
         <Hand

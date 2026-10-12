@@ -487,3 +487,48 @@ describe("a conversa da mesa", () => {
     await expect(tooSoon).rejects.toBeDefined();
   });
 });
+
+describe("quem assiste", () => {
+  it("entra no meio da partida sem cadeira, sem mão e sem virar host", async () => {
+    const { room } = await dealt(2);
+
+    const watcher = await colyseus.connectTo(room, { playerName: "Plateia", spectate: true });
+    const hand = watcher.waitForMessage("hand", 400);
+
+    expect(room.state.players.length).toBe(2);
+    expect(room.state.hostId).not.toBe(watcher.sessionId);
+    await expect(hand).rejects.toBeDefined();
+  });
+
+  it("senta normalmente se pedir para assistir ainda no lobby", async () => {
+    const { room } = await seated(2);
+
+    await colyseus.connectTo(room, { playerName: "Cedo", spectate: true });
+    await room.waitForNextPatch();
+
+    expect([...room.state.players].map((p) => p.name)).toContain("Cedo");
+  });
+
+  it("não fala na mesa e não joga", async () => {
+    const { room, clients } = await playing(2);
+    const watcher = await colyseus.connectTo(room, { playerName: "Plateia", spectate: true });
+
+    const heard = clients[0].waitForMessage("emote", 400);
+    watcher.send("emote", { emote: "😂" });
+    await expect(heard).rejects.toBeDefined();
+
+    watcher.send("play", { cardId: "qualquer" });
+    await expect(watcher.waitForMessage("error", 1000)).resolves.toBeDefined();
+    expect(room.state.centreCount).toBe(0);
+  });
+
+  it("sai sem mexer na mesa", async () => {
+    const { room } = await dealt(2);
+    const watcher = await colyseus.connectTo(room, { playerName: "Plateia", spectate: true });
+
+    await watcher.leave();
+
+    expect(room.state.players.length).toBe(2);
+    expect(room.state.log.join()).not.toContain("Plateia");
+  });
+});

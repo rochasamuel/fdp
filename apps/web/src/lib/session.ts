@@ -27,6 +27,12 @@ export type StoredSession = {
    * `@fdp/shared`.
    */
   seatKey: string;
+  /**
+   * Entrou para assistir. Quem assiste não tem cadeira guardada, então voltar
+   * depois de recarregar é entrar de novo como plateia — e não bater na porta
+   * dos jogadores para ouvir que a partida já começou.
+   */
+  spectator?: boolean;
 };
 
 /**

@@ -24,11 +24,21 @@ export function RoomScreen({ code }: { code: string }) {
   return (
     <>
       {status === "naming" && (
-        <NameGate code={code} error={connection.error} onJoin={connection.join} />
+        <NameGate
+          code={code}
+          error={connection.error}
+          onJoin={connection.join}
+          onSpectate={connection.canSpectate ? connection.spectate : undefined}
+        />
       )}
 
       {status === "lost" && (
-        <Disconnected error={connection.error} onRetry={connection.retry} onExit={exit} />
+        <Disconnected
+          error={connection.error}
+          onRetry={connection.retry}
+          onSpectate={connection.canSpectate ? connection.spectate : undefined}
+          onExit={exit}
+        />
       )}
 
       {status === "connecting" && <Centered title="Conectando" />}
@@ -208,10 +218,13 @@ function NameGate({
   code,
   error,
   onJoin,
+  onSpectate,
 }: {
   code: string;
   error: string;
   onJoin: (name: string) => void;
+  /** Presente quando a partida já começou: a cadeira não dá, a plateia dá. */
+  onSpectate?: () => void;
 }) {
   const playerName = useUi((ui) => ui.playerName);
   const setPlayerName = useUi((ui) => ui.setPlayerName);
@@ -251,6 +264,11 @@ function NameGate({
           {error}
         </p>
       )}
+      {onSpectate && (
+        <button type="button" onClick={onSpectate} className="px-btn">
+          👁 Assistir a partida
+        </button>
+      )}
       <button type="button" onClick={() => navigate("/")} className="px-link">
         voltar ao início
       </button>
@@ -267,10 +285,13 @@ function NameGate({
 function Disconnected({
   error,
   onRetry,
+  onSpectate,
   onExit,
 }: {
   error: string;
   onRetry: () => void;
+  /** Ver o `NameGate`: a cadeira se foi, mas a partida ainda dá para ver. */
+  onSpectate?: () => void;
   onExit: () => void;
 }) {
   return (
@@ -282,6 +303,11 @@ function Disconnected({
         <button type="button" onClick={onRetry} className="px-btn px-btn-primary">
           Tentar de novo
         </button>
+        {onSpectate && (
+          <button type="button" onClick={onSpectate} className="px-btn">
+            👁 Assistir
+          </button>
+        )}
         <button type="button" onClick={onExit} className="px-btn">
           Início
         </button>

@@ -4,8 +4,10 @@ import {
   EMOTE_COOLDOWN,
   isEmote,
   LOBBY_RECONNECT_TIMEOUT,
+  MATCH_STARTED,
   MAX_CARDS_CAP,
   MAX_PLAYERS,
+  MAX_SPECTATORS,
   MAX_STARTING_POINTS,
   MIN_PLAYERS,
   MIN_STARTING_POINTS,
@@ -65,6 +67,12 @@ export class TableRoom extends Room<{ state: TableRoomState }> {
    * (ver `onLeave`), e a segunda reserva seria um lugar que nunca morre.
    */
   private holding = new Set<string>();
+  /**
+   * Quem está só assistindo: conectado, sem cadeira e sem mão. Não entra no
+   * estado sincronizado — a mesa é de quem joga —, e não guarda lugar ao cair:
+   * não há lugar nenhum a guardar.
+   */
+  private spectators = new Set<string>();
 
   messages = {
     start: (client: Client) => this.act(client, () => this.draft(client)),
@@ -103,6 +111,8 @@ export class TableRoom extends Room<{ state: TableRoomState }> {
      * isso seria mais barulhento que a mensagem que ele está impedindo.
      */
     emote: (client: Client, message: EmoteMessage) => {
+      // Quem assiste não tem assento de onde o balão possa sair.
+      if (this.spectators.has(client.sessionId)) return;
       if (!isEmote(message?.emote)) return;
       const now = this.clock.currentTime;
       const last = this.lastEmote.get(client.sessionId) ?? -Infinity;
@@ -134,7 +144,9 @@ export class TableRoom extends Room<{ state: TableRoomState }> {
       MIN_PLAYERS,
       MAX_PLAYERS,
     );
-    this.maxClients = this.state.maxPlayers;
+    // A porta do framework conta conexões, e quem assiste também é conexão. O
+    // limite de cadeiras é do `onJoin`, que sabe quem veio jogar.
+    this.maxClients = this.state.maxPlayers + MAX_SPECTATORS;
 
     // As regras da casa chegam com a criação e não mudam mais: trocá-las no
     // meio da partida seria mudar o que vale uma carta que já está na mão de
@@ -181,10 +193,23 @@ export class TableRoom extends Room<{ state: TableRoomState }> {
         throw new GameError("Você já está nesta mesa em outra aba.");
       }
       this.reseat(seat, client);
+    } else if (options?.spectate === true && this.started) {
+      /*
+       * Assistir. Sem cadeira, sem mão e sem voz na mesa: o estado público que
+       * o Colyseus manda na entrada é tudo o que ele recebe. As mãos dos
+       * outros ficam fechadas — abertas, assistir viraria o jeito de espiar a
+       * mesa por uma segunda aba.
+       */
+      if (this.spectators.size >= MAX_SPECTATORS) throw new GameError("A plateia desta mesa está cheia.");
+      this.spectators.add(client.sessionId);
+      return;
     } else {
       // O sorteio já rolando é uma partida que começou: quem entrasse agora
       // receberia cartas de uma roleta que já passou na tela dos outros.
-      if (this.starterTimer) throw new GameError("A partida já começou.");
+      if (this.started) throw new GameError(MATCH_STARTED);
+      if (this.game.players.length >= this.state.maxPlayers) {
+        throw new GameError("A mesa está cheia.");
+      }
       this.game.addPlayer(client.sessionId, seatKey, sanitize(options?.playerName, "Jogador", 16));
       this.connected.add(client.sessionId);
     }
@@ -279,6 +304,11 @@ export class TableRoom extends Room<{ state: TableRoomState }> {
 
   /* --------------------------------------------------------------- privado */
 
+  /** A partida já saiu do lobby — ou está sorteando quem começa, o que dá no mesmo. */
+  private get started() {
+    return this.game.phase !== "lobby" || !!this.starterTimer;
+  }
+
   /** A cadeira desta conexão, se ela ainda tiver uma. */
   private seatOf(client: Client) {
     return this.game.players.find((player) => player.id === client.sessionId);
@@ -317,6 +347,8 @@ export class TableRoom extends Room<{ state: TableRoomState }> {
 
   /** Tira a cadeira da mesa. Idempotente: o prazo e o framework podem chegar juntos. */
   private release(client: Client) {
+    // Quem assistia sai sem deixar rastro na mesa: nada a sincronizar.
+    if (this.spectators.delete(client.sessionId)) return;
     this.holding.delete(client.sessionId);
     this.connected.delete(client.sessionId);
     this.lastEmote.delete(client.sessionId);

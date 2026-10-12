@@ -15,6 +15,7 @@ import type {
   PromiseMessage,
   TableState,
 } from "@fdp/shared";
+import { MATCH_STARTED } from "@fdp/shared";
 import { client } from "../lib/colyseus";
 import { takePendingRoom } from "../lib/pendingRoom";
 import {
@@ -55,7 +56,16 @@ export type RoomConnection = {
   /** As promessas que você pode declarar agora. Vazio fora da sua vez. */
   promises: number[];
   sessionId: string;
+  /** Você está só assistindo: sem cadeira, sem mão. */
+  spectating: boolean;
+  /**
+   * A última entrada foi recusada porque a partida já começou — e a porta da
+   * plateia está aberta. É o que faz a tela oferecer "assistir".
+   */
+  canSpectate: boolean;
   join: (playerName: string) => Promise<void>;
+  /** Entra na mesa para assistir a partida em andamento. */
+  spectate: () => Promise<void>;
   /** Tenta voltar para a mesa depois de o lugar ter sido perdido. */
   retry: () => void;
   leave: () => void;
@@ -95,16 +105,28 @@ export function useRoomConnection(code: string): RoomConnection {
   const [state, setState] = useState<TableState | null>(null);
   const [hand, setHand] = useState<HandMessage>(EMPTY_HAND);
   const [sessionId, setSessionId] = useState("");
+  const [spectating, setSpectating] = useState(false);
+  const [canSpectate, setCanSpectate] = useState(false);
+
+  /** Guarda a recusa e lembra se ela foi a da partida já começada. */
+  const refuse = useCallback((cause: unknown) => {
+    setError(joinError(cause));
+    setCanSpectate(isMatchStarted(cause));
+  }, []);
 
   const attach = useCallback(
-    (room: Room, playerName: string, seatKey: string) => {
+    (room: Room, playerName: string, seatKey: string, spectator = false) => {
       roomRef.current = room;
       setSessionId(room.sessionId);
+      setSpectating(spectator);
       setStatus("connected");
       setDropped(false);
       setError("");
+      setCanSpectate(false);
       let token = room.reconnectionToken;
-      saveSession(code, { reconnectionToken: token, playerName, seatKey });
+      const save = () =>
+        saveSession(code, { reconnectionToken: token, playerName, seatKey, spectator });
+      save();
 
       room.onStateChange(() => {
         /*
@@ -117,7 +139,7 @@ export function useRoomConnection(code: string): RoomConnection {
          */
         if (room.reconnectionToken !== token) {
           token = room.reconnectionToken;
-          saveSession(code, { reconnectionToken: token, playerName, seatKey });
+          save();
         }
         setState(room.state.toJSON() as TableState);
       });
@@ -133,7 +155,7 @@ export function useRoomConnection(code: string): RoomConnection {
       room.onReconnect(() => {
         setDropped(false);
         token = room.reconnectionToken;
-        saveSession(code, { reconnectionToken: token, playerName, seatKey });
+        save();
       });
       room.onLeave(() => {
         roomRef.current = null;
@@ -160,12 +182,27 @@ export function useRoomConnection(code: string): RoomConnection {
         // Sem `clearSession`: uma entrada nova que falhou não diz nada sobre um
         // lugar guardado de antes, e apagar o token aqui fecharia a única porta
         // que ainda pode abrir. Quem sai de fato apaga o dele em `leave`.
-        setError(joinError(cause));
+        refuse(cause);
         setStatus("naming");
       }
     },
-    [attach, code],
+    [attach, code, refuse],
   );
+
+  const spectate = useCallback(async () => {
+    setStatus("connecting");
+    setError("");
+    const playerName = loadSession(code)?.playerName || loadPlayerName() || "Plateia";
+    const seatKey = seatKeyFor(code);
+    try {
+      const room = await watch(code, playerName, seatKey);
+      if (!alive.current) return void room.leave();
+      attach(room, playerName, seatKey, true);
+    } catch (cause) {
+      refuse(cause);
+      setStatus("lost");
+    }
+  }, [attach, code, refuse]);
 
   /**
    * O caminho de volta para a mesa, em ordem de preferência: a sala que a tela
@@ -194,6 +231,19 @@ export function useRoomConnection(code: string): RoomConnection {
       setStatus("connecting");
       setError("");
 
+      // Quem assistia não tem cadeira a reclamar: volta direto para a plateia.
+      if (saved?.spectator) {
+        try {
+          const room = await watch(code, saved.playerName, seatKey);
+          if (!alive.current) return void room.leave();
+          return attach(room, saved.playerName, seatKey, true);
+        } catch (cause) {
+          if (!alive.current) return;
+          refuse(cause);
+          return setStatus("lost");
+        }
+      }
+
       if (saved?.reconnectionToken) {
         const room = await reclaimSeat(saved.reconnectionToken, () => alive.current);
         if (!alive.current) return void room?.leave();
@@ -215,7 +265,7 @@ export function useRoomConnection(code: string): RoomConnection {
         attach(room, name, seatKey);
       } catch (cause) {
         if (!alive.current) return;
-        setError(joinError(cause));
+        refuse(cause);
         // Quem nunca sentou precisa do formulário de nome; quem já estava na
         // mesa precisa do motivo e de um botão para tentar de novo.
         setStatus(saved ? "lost" : "naming");
@@ -223,7 +273,7 @@ export function useRoomConnection(code: string): RoomConnection {
     } finally {
       busy.current = false;
     }
-  }, [attach, code]);
+  }, [attach, code, refuse]);
 
   useEffect(() => {
     alive.current = true;
@@ -322,7 +372,10 @@ export function useRoomConnection(code: string): RoomConnection {
     promises: hand.promises,
     playableIds,
     sessionId,
+    spectating,
+    canSpectate,
     join,
+    spectate,
     retry,
     leave,
     actions,
@@ -354,6 +407,20 @@ async function reclaimSeat(token: string, alive: () => boolean): Promise<Room | 
     }
   }
   return null;
+}
+
+/** A entrada pela porta da plateia. Ver `spectate` em `JoinRoomOptions`. */
+function watch(code: string, playerName: string, seatKey: string) {
+  return client.joinById(code, {
+    playerName,
+    seatKey,
+    spectate: true,
+  } satisfies JoinRoomOptions);
+}
+
+function isMatchStarted(cause: unknown) {
+  const message = cause instanceof Error ? cause.message : String(cause);
+  return message.includes(MATCH_STARTED);
 }
 
 function joinError(cause: unknown): string {

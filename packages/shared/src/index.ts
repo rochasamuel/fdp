@@ -215,6 +215,16 @@ export type GamePhase = "lobby" | "playing" | "finished";
 
 export const MIN_PLAYERS = 2;
 export const MAX_PLAYERS = 10;
+/**
+ * Quantos podem assistir a uma mesa ao mesmo tempo, além de quem joga. É um
+ * teto contra a sala virar plateia, e não um número que a mesa precise mostrar.
+ */
+export const MAX_SPECTATORS = 20;
+/**
+ * A recusa de quem chega com a partida rolando. É texto e é contrato: o
+ * cliente a reconhece para oferecer "assistir" no lugar do beco sem saída.
+ */
+export const MATCH_STARTED = "A partida já começou.";
 export const DEFAULT_MAX_PLAYERS = 4;
 
 /* ------------------------------------------------------------- a regra */
@@ -574,6 +584,11 @@ export type CreateRoomOptions = {
 export type JoinRoomOptions = {
   playerName: string;
   seatKey: string;
+  /**
+   * Entrar para assistir, sem cadeira. Só vale com a partida já começada: no
+   * lobby quem chega senta, que é o que a mesa está esperando.
+   */
+  spectate?: boolean;
 };
 
 /** cliente -> servidor */
