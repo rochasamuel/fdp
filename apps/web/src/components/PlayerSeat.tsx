@@ -100,6 +100,17 @@ export function PlayerSeat({
       </span>
 
       {/*
+        Caiu, e a mesa está guardando o lugar dele. O relógio é o que separa
+        "o Fulano travou a mesa" de "o Fulano tem mais um minuto para voltar":
+        quem espera precisa saber até quando.
+      */}
+      {!player.connected && player.away > 0 && (
+        <span className="px-label" role="status" title="tempo para voltar à mesa">
+          caiu · esperando {clock(player.away)}
+        </span>
+      )}
+
+      {/*
         A promessa dele, dita alto, e só enquanto a mesa está declarando: nessa
         etapa a única coisa que acontece é cada um dizer um número, e é ele que
         decide o que você vai prometer na sua vez. Depois disso ela vira o
@@ -192,4 +203,9 @@ export function PlayerSeat({
       )}
     </div>
   );
+}
+
+/** 90 → "1:30". */
+function clock(seconds: number) {
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 }

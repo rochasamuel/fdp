@@ -72,6 +72,8 @@ export class PlayerState extends Schema {
   @type("int8") promise = -1;
   @type("uint8") tricks = 0;
   @type("boolean") eliminated = false;
+  /** Segundos de cadeira guardada que restam a quem caiu. Ver `TableRoom.hold`. */
+  @type("uint16") away = 0;
 }
 
 export class TableRoomState extends Schema {

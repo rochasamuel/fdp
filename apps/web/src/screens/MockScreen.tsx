@@ -108,6 +108,8 @@ export function MockScreen() {
       id: i === 0 ? ME : `p${i}`,
       name: NAMES[i % NAMES.length],
       connected: i !== 3,
+      // O desconectado está com a cadeira guardada: é assim que o timer aparece.
+      away: i === 3 ? 74 : 0,
       points: [10, 8, 3, 1, 7, 5, 9, 2, 6, 4][i % 10],
       // Quem já saiu passou do zero: é o saldo negativo que o fim de partida
       // mostra para separar dois "zero".

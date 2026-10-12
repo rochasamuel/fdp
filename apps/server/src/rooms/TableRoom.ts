@@ -1,4 +1,4 @@
-import { CloseCode, Room, type Client } from "colyseus";
+import { CloseCode, Room, type Client, type Delayed } from "colyseus";
 import {
   DEFAULT_MAX_PLAYERS,
   EMOTE_COOLDOWN,
@@ -62,11 +62,15 @@ export class TableRoom extends Room<{ state: TableRoomState }> {
   /** Até que linha do log a mesa já foi espelhada. Ver `syncLog`. */
   private sentLogSeq = 0;
   /**
-   * Cadeiras guardadas agora, à espera de quem caiu. Existe para não guardar a
-   * mesma cadeira duas vezes: o framework avisa a mesma queda por dois caminhos
-   * (ver `onLeave`), e a segunda reserva seria um lugar que nunca morre.
+   * Cadeiras guardadas agora, à espera de quem caiu, e quando cada uma morre.
+   *
+   * Pela cadeira, e não pelo `sessionId`: quem volta pela chave volta com uma
+   * sessão nova, e é a mesma cadeira que deixa de esperar. O prazo é da SALA,
+   * e não do `allowReconnection` — ver `hold`.
    */
-  private holding = new Set<string>();
+  private holds = new Map<GamePlayer, { until: number; timer: Delayed }>();
+  /** O relógio que faz o timer de quem caiu andar na tela dos outros. */
+  private awayTicker?: Delayed;
   /**
    * Quem está só assistindo: conectado, sem cadeira e sem mão. Não entra no
    * estado sincronizado — a mesa é de quem joga —, e não guarda lugar ao cair:
@@ -232,7 +236,7 @@ export class TableRoom extends Room<{ state: TableRoomState }> {
     // A reserva antiga ainda vai vencer lá na frente, e quando vencer não vai
     // achar cadeira nenhuma com aquele id — que é o certo. O que sai daqui é só
     // a marca, para ela não sobrar em memória pelo resto da partida.
-    this.holding.delete(previous);
+    this.unhold(seat);
     this.connected.delete(previous);
     this.connected.add(client.sessionId);
     this.sentHands.delete(previous);
@@ -272,7 +276,7 @@ export class TableRoom extends Room<{ state: TableRoomState }> {
       client.leave();
       return;
     }
-    this.holding.delete(client.sessionId);
+    this.unhold(this.seatOf(client));
     this.connected.add(client.sessionId);
     this.sync();
   }
@@ -291,7 +295,9 @@ export class TableRoom extends Room<{ state: TableRoomState }> {
    * Só o `4000` é uma saída de verdade; o resto é queda, e queda guarda lugar.
    */
   onLeave(client: Client, code: CloseCode) {
-    if (code !== CONSENTED && !this.holding.has(client.sessionId) && this.seatOf(client)) {
+    // Se a cadeira já está guardada, `hold` não faz nada: o prazo que conta é
+    // o que começou na primeira notícia da queda.
+    if (code !== CONSENTED && this.seatOf(client)) {
       this.hold(client);
       return;
     }
@@ -317,44 +323,90 @@ export class TableRoom extends Room<{ state: TableRoomState }> {
   /**
    * Guarda o lugar de quem caiu, e marca o fim do prazo.
    *
-   * O `catch` é o que faz os 90 segundos serem 90 segundos: sem ele, quem
-   * decidiria a hora de tirar a cadeira seria o `onLeave` que o framework
-   * dispara depois — o mesmo que não sabe distinguir uma queda de uma saída.
-   * Aqui a promessa é explícita: reconectou, fica; não reconectou, sai.
+   * O prazo é contado AQUI, e não pela promessa do `allowReconnection`. Ela
+   * não é um relógio: toda (re)conexão passa por uma janela em que o servidor
+   * espera o cliente confirmar a entrada, e uma queda nessa janela faz o
+   * framework recusar a reserva na hora ("not joined"). Tratar essa recusa
+   * como prazo vencido matava a cadeira em milissegundos — numa conexão de
+   * outro continente, a janela é uma ida e volta inteira, e o SDK passa por
+   * ela a cada tentativa de reconectar.
+   *
+   * O `allowReconnection` continua sendo pedido, mas como atalho: ele devolve
+   * o lugar a quem volta pelo token. Quando ele falha, quem volta pela chave
+   * (`seatKey`, ver `onJoin`) acha a cadeira esperando do mesmo jeito.
    */
   private hold(client: Client) {
     // Um cliente que nem chegou a sentar (o `onJoin` o recusou) não tem cadeira
-    // a guardar, e pedir uma reserva para ele só rende um erro no log.
-    if (!this.seatOf(client)) return;
+    // a guardar.
+    const seat = this.seatOf(client);
+    if (!seat) return;
 
     this.connected.delete(client.sessionId);
     // Quem volta pode ser uma página nova, de leque vazio: o que ele já recebeu
     // não vale mais como aposta.
     this.sentHands.delete(client.sessionId);
-    this.holding.add(client.sessionId);
-    this.sync();
 
-    // Guardar o lugar é também o que mantém a sala viva: o Colyseus só descarta
-    // uma sala sem clientes quando não há mais nenhuma reserva pendente.
-    this.allowReconnection(
-      client,
-      this.game.phase === "playing" ? RECONNECT_TIMEOUT : LOBBY_RECONNECT_TIMEOUT,
-    ).catch(() => {
-      // O prazo venceu, ou a sala acabou: agora sim a cadeira é de mais ninguém.
-      this.release(client);
-    });
+    if (!this.holds.has(seat)) {
+      const seconds =
+        this.game.phase === "playing" ? RECONNECT_TIMEOUT : LOBBY_RECONNECT_TIMEOUT;
+      this.holds.set(seat, {
+        until: this.clock.currentTime + seconds * 1000,
+        timer: this.clock.setTimeout(() => this.expire(seat), seconds * 1000),
+      });
+      // Uma sala sem conexão nenhuma se desfaz sozinha — e com ela a cadeira
+      // que se prometeu guardar. Enquanto houver uma, a sala fica de pé.
+      this.autoDispose = false;
+      this.tickAway();
+      this.allowReconnection(client, seconds).catch(() => {
+        // Recusada ou vencida: quem decide o fim da cadeira é o `expire`.
+      });
+    }
+    this.sync();
+  }
+
+  /** A cadeira deixa de esperar: o dono voltou, ou saiu de vez. */
+  private unhold(seat: GamePlayer | undefined) {
+    const held = seat && this.holds.get(seat);
+    if (!held) return;
+    held.timer.clear();
+    this.holds.delete(seat);
+    if (this.holds.size === 0) {
+      this.awayTicker?.clear();
+      this.awayTicker = undefined;
+      this.autoDispose = true;
+    }
+  }
+
+  /** O prazo venceu sem o dono voltar: agora sim a cadeira é de mais ninguém. */
+  private expire(seat: GamePlayer) {
+    this.unhold(seat);
+    if (!this.game.players.includes(seat) || this.connected.has(seat.id)) return;
+    this.removeSeat(seat.id);
+  }
+
+  /**
+   * O timer de quem caiu, segundo a segundo, na tela de quem ficou. Só o
+   * placar dos jogadores: o resto da mesa não mudou porque o relógio andou.
+   */
+  private tickAway() {
+    if (this.awayTicker) return;
+    this.awayTicker = this.clock.setInterval(() => this.syncPlayers(), 1000);
   }
 
   /** Tira a cadeira da mesa. Idempotente: o prazo e o framework podem chegar juntos. */
   private release(client: Client) {
     // Quem assistia sai sem deixar rastro na mesa: nada a sincronizar.
     if (this.spectators.delete(client.sessionId)) return;
-    this.holding.delete(client.sessionId);
-    this.connected.delete(client.sessionId);
-    this.lastEmote.delete(client.sessionId);
-    this.sentHands.delete(client.sessionId);
-    this.game.removePlayer(client.sessionId);
-    if (this.state.hostId === client.sessionId) {
+    this.removeSeat(client.sessionId);
+  }
+
+  private removeSeat(id: string) {
+    this.unhold(this.game.players.find((player) => player.id === id));
+    this.connected.delete(id);
+    this.lastEmote.delete(id);
+    this.sentHands.delete(id);
+    this.game.removePlayer(id);
+    if (this.state.hostId === id) {
       this.state.hostId = this.game.players[0]?.id ?? "";
     }
     this.sync();
@@ -619,6 +671,10 @@ export class TableRoom extends Room<{ state: TableRoomState }> {
       entry.promise = player.promise ?? -1;
       entry.tricks = player.tricks;
       entry.eliminated = player.eliminated;
+      const held = this.holds.get(player);
+      entry.away = held
+        ? Math.max(0, Math.ceil((held.until - this.clock.currentTime) / 1000))
+        : 0;
     });
   }
 

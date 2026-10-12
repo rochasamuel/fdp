@@ -1,5 +1,5 @@
 import { boot, type ColyseusTestServer } from "@colyseus/testing";
-import { MAX_PLAYERS, STARTING_POINTS } from "@fdp/shared";
+import { MAX_PLAYERS, RECONNECT_TIMEOUT, STARTING_POINTS } from "@fdp/shared";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import appConfig from "../app.config.js";
 import type { TableGame } from "../game/TableGame.js";
@@ -392,6 +392,54 @@ describe("uma queda que chega pelo caminho da saída", () => {
       .onLeave(saindo, 4000);
 
     expect([...room.state.players].map((p) => p.name)).toEqual(["P0", "P1"]);
+  });
+});
+
+describe("uma queda no meio da entrada", () => {
+  /*
+   * Toda (re)conexão passa por uma janela em que o servidor espera o cliente
+   * confirmar a entrada. Uma queda ali faz o `allowReconnection` recusar na
+   * hora ("not joined") — e a recusa não pode valer como prazo vencido. Numa
+   * conexão de outro continente essa janela é uma ida e volta inteira.
+   */
+  it("guarda a cadeira mesmo quando o framework recusa a reserva", async () => {
+    const room = await colyseus.createRoom<TableRoom>("table", { roomName: "Mesa" });
+    await colyseus.connectTo(room, { playerName: "Ana", seatKey: "chave-ana" });
+    await colyseus.connectTo(room, { playerName: "Bruno", seatKey: "chave-bruno" });
+    const { game, sync } = engine(room);
+    game.start();
+    sync();
+
+    // O cliente de volta ao estado de "ainda não confirmou a entrada".
+    const bruno = room.clients[1] as unknown as { _enqueuedMessages?: unknown[] };
+    bruno._enqueuedMessages = [];
+    const hooks = room as unknown as {
+      onDrop: (c: unknown, code: number) => void;
+      onLeave: (c: unknown, code: number) => Promise<void>;
+    };
+    hooks.onDrop(bruno, 1006);
+    await new Promise((done) => setTimeout(done, 50));
+    await hooks.onLeave(bruno, 1006);
+
+    expect([...room.state.players].map((p) => p.name)).toEqual(["Ana", "Bruno"]);
+    expect(room.state.players[1].connected).toBe(false);
+
+    // E a chave continua abrindo a cadeira.
+    await colyseus.connectTo(room, { playerName: "Bruno", seatKey: "chave-bruno" });
+    expect(room.state.players.length).toBe(2);
+    expect(room.state.players[1].connected).toBe(true);
+    // A cadeira deixou de esperar: o timer some do assento.
+    expect(room.state.players[1].away).toBe(0);
+  });
+
+  it("publica quanto falta para a cadeira morrer", async () => {
+    const { room } = await dealt(2);
+
+    await (room as unknown as { onLeave: (c: unknown, code: number) => Promise<void> })
+      .onLeave(room.clients[1], 1006);
+
+    expect(room.state.players[1].away).toBe(RECONNECT_TIMEOUT);
+    expect(room.state.players[0].away).toBe(0);
   });
 });
 

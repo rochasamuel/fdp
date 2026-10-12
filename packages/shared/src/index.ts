@@ -494,6 +494,11 @@ export type PublicPlayer = {
   /** Quantas ele fez até agora nesta rodada. */
   tricks: number;
   eliminated: boolean;
+  /**
+   * Segundos que ainda restam da cadeira guardada de quem caiu. `0` é quem
+   * está conectado — ou quem a mesa já não espera mais.
+   */
+  away: number;
 };
 
 export type TableState = {
