@@ -1,18 +1,11 @@
-import {
-  Fragment,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  type CSSProperties,
-} from "react";
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { toCard } from "@fdp/shared";
-import type { Card, MatchStage, PeekedHand, RoundResult, TableState } from "@fdp/shared";
+import type { Card, MatchStage, PeekedHand, TableState } from "@fdp/shared";
 import type { RoomActions, RoomConnection } from "../game/useRoomConnection";
 import { flyPlay, markLeaving, type Pose } from "../game/flights";
 import { useEmotes } from "../game/useEmotes";
 import { artUrl, scatter, strongestIndex } from "../lib/cards";
+import { at, ringLayout, type Box } from "../lib/ringLayout";
 import { useMediaQuery } from "../lib/useMediaQuery";
 import { useSound } from "../lib/sound";
 import { useUi } from "../store/ui";
@@ -22,8 +15,11 @@ import { useHandOrder } from "../game/useHandOrder";
 import { DrawPile } from "./DrawPile";
 import { EmoteBubble } from "./EmoteBubble";
 import { EmotePicker } from "./EmotePicker";
+import { GameOver } from "./GameOver";
 import { Hand, type HandEntry } from "./Hand";
 import { PlayerSeat } from "./PlayerSeat";
+import { PromisePanel } from "./PromisePanel";
+import { RoundScore } from "./RoundScore";
 import { RulesMenu } from "./RulesMenu";
 import { SystemLog } from "./SystemLog";
 import { YourPoints } from "./YourPoints";
@@ -147,9 +143,6 @@ export function Table({
   // O aviso das cegas está no ar. Uma conta só para os dois lugares que
   // dependem dele: a tira e o que ela cobriria — ver o cabeçalho.
   const blindBanner = state.blind && state.stage !== "round_result";
-  // Quem venceu: um de costume, vários quando a última rodada zerou a mesa
-  // inteira no mesmo saldo, nenhum quando não sobrou ninguém.
-  const champions = state.players.filter((player) => state.winnerIds.includes(player.id));
 
   /*
    * A sua carta parte no clique, sem esperar o servidor confirmar. Ela é a
@@ -522,69 +515,14 @@ export function Table({
       )}
 
       {state.phase === "finished" && (
-        <div className="fixed inset-0 z-40 grid place-content-center bg-black/70 p-4">
-          <div className="px-slab flex flex-col items-center gap-4 p-8 text-center">
-            <p className="px-label">Fim de partida</p>
-            <p className="px-code">
-              {champions.length > 0
-                ? champions.map((player) => player.name).join(" e ")
-                : "Ninguém"}
-            </p>
-            <p className="px-label">
-              {champions.length > 1
-                ? "empataram no fundo do poço"
-                : champions.length === 1
-                  ? "foi o último de pé"
-                  : "sobrou de pé"}
-            </p>
-
-            {/* Como cada um terminou. Perder não é vergonha nenhuma neste jogo:
-                é o placar de quantas rodadas cada um aguentou.
-
-                Quem passou do zero aparece com o saldo negativo, e não com o
-                zero da regra: quando a última rodada derruba a mesa inteira,
-                "0 e 0" não diz nada, e "-1 e -3" diz tudo. */}
-            <ul className="flex w-full flex-col gap-1 text-sm">
-              {[...state.players]
-                .sort((a, b) => b.overshoot - a.overshoot)
-                .map((player) => {
-                  const crowned = state.winnerIds.includes(player.id);
-                  const short = player.overshoot < 0;
-                  return (
-                    <li key={player.id} className="flex items-baseline justify-between gap-4">
-                      <span style={{ color: crowned ? "var(--mark)" : "var(--paper-sh)" }}>
-                        {crowned && "👑 "}
-                        {player.name}
-                        {player.id === sessionId && " (você)"}
-                      </span>
-                      <span style={{ color: short ? "var(--ink-red)" : "var(--paper-hi)" }}>
-                        {short ? player.overshoot : player.points} pt
-                      </span>
-                    </li>
-                  );
-                })}
-            </ul>
-
-            {/* Duas saídas para o fim da partida: outra mão, ou a porta. Quem
-                não é host só tem a porta — e antes não tinha nenhuma. */}
-            <div className="flex flex-col items-stretch gap-2">
-              {state.hostId === sessionId ? (
-                <button
-                  type="button"
-                  onClick={actions.restart}
-                  className="px-btn px-btn-primary"
-                >
-                  Jogar de novo
-                </button>
-              ) : (
-                <p className="px-label">Aguardando o host começar outra</p>
-              )}
-              <button type="button" onClick={onExit} className="px-btn">
-                Voltar ao início
-              </button>
-            </div>
-          </div>
-        </div>
+        <GameOver
+          players={state.players}
+          winnerIds={state.winnerIds}
+          you={sessionId}
+          isHost={state.hostId === sessionId}
+          onRestart={actions.restart}
+          onExit={onExit}
+        />
       )}
     </div>
   );
@@ -659,131 +597,6 @@ function useSeatRow(seatCount: number, ring: boolean) {
  */
 const TURN_DIRECTION = 1;
 
-/* ---- a mesa redonda ------------------------------------------------------
- * Você está embaixo, do lado de cá da tela, com o leque na mão — esse é o seu
- * lugar na roda, e é por isso que a roda é um ARCO e não um círculo fechado: o
- * pedaço que falta é você. Os outros se sentam em volta das pilhas, na ordem
- * em que jogam, saindo da sua esquerda.
- *
- * Sair pela esquerda não é gosto: com você embaixo olhando para a mesa, o
- * sentido horário — o que o cabeçalho chama de "↻ horário" — passa por baixo à
- * esquerda, sobe, cruza o topo e desce à direita. Quem inverte a mesa não
- * remexe os assentos, só vira as setas; ninguém troca de cadeira no meio da
- * partida por causa de um carta de inverter.
- * ------------------------------------------------------------------------- */
-
-/** O arco todo, e o quanto pode caber entre um assento e o vizinho. */
-const RING_SPAN = 220;
-const RING_GAP = 70;
-
-/*
- * Os dois raios da elipse, em porcentagem da caixa dos assentos.
- *
- * O horizontal é metade da largura, sem mistério. O vertical é maior que
- * metade da altura, e o centro desce junto: como o arco para nos 110° e não
- * fecha embaixo, uma elipse inscrita na caixa deixaria o terço de baixo dela
- * vazio — uma faixa de feltro entre o assento mais baixo e a sua mão. Esticada
- * assim, o topo do arco encosta no topo da caixa e as pontas encostam no
- * fundo; o pedaço que sobra para fora, embaixo, é o seu lugar na roda.
- */
-const RING_RX = 50;
-const RING_RY = 100 / (1 - Math.cos((RING_SPAN / 2) * (Math.PI / 180)));
-
-type Box = { w: number; h: number };
-type Slot = { x: number; y: number };
-
-/**
- * Onde cada assento se senta e onde cada seta fica, em porcentagem da caixa
- * dos assentos. Porcentagem porque a elipse é a caixa: quem decide o tamanho
- * da roda é o CSS, que sabe quanto sobrou de tela.
- */
-function ringLayout(count: number, direction: number, box: Box) {
-  const angles = evenArc(count, Math.min(RING_SPAN, RING_GAP * (count - 1)), box);
-
-  return {
-    seats: angles.map(onEllipse),
-    // A seta de índice i fica entre o assento i e o i+1.
-    flows: angles.slice(1).map((angle, i) => ({
-      ...onEllipse((angles[i] + angle) / 2),
-      glyph: tangent((angles[i] + angle) / 2, direction, box),
-    })),
-  };
-}
-
-/**
- * Os ângulos que repartem o arco em pedaços do mesmo COMPRIMENTO — e não do
- * mesmo ângulo.
- *
- * A roda é uma elipse larga e baixa, e nela um grau vale coisas muito
- * diferentes conforme onde se está: no topo, meia mesa; na lateral, um palmo.
- * Repartindo por ângulo, os assentos das pontas se amontoam justamente onde
- * cada um deles é mais alto — o "PEGAR" e o "TROCAR" nascem ali — e dois
- * vizinhos acabam se encostando numa tela de notebook.
- *
- * Sem fórmula fechada para o arco de elipse: mede-se andando, em 720 passos,
- * e depois pescam-se as marcas. São umas poucas centenas de contas por
- * mudança de tamanho da caixa (o `useMemo` de quem chama segura o resto).
- */
-function evenArc(count: number, span: number, box: Box) {
-  if (count < 2) return [0];
-
-  const rx = (box.w * RING_RX) / 100;
-  const ry = (box.h * RING_RY) / 100;
-  const at = (degrees: number) => {
-    const radians = (degrees * Math.PI) / 180;
-    return { x: rx * Math.sin(radians), y: -ry * Math.cos(radians) };
-  };
-
-  const STEPS = 720;
-  const step = span / STEPS;
-  const walked = [0];
-  for (let i = 1; i <= STEPS; i++) {
-    const from = at(-span / 2 + step * (i - 1));
-    const to = at(-span / 2 + step * i);
-    walked.push(walked[i - 1] + Math.hypot(to.x - from.x, to.y - from.y));
-  }
-
-  const total = walked[STEPS];
-  let cursor = 0;
-  return Array.from({ length: count }, (_, i) => {
-    const target = (total * i) / (count - 1);
-    while (cursor < STEPS && walked[cursor + 1] < target) cursor++;
-    // Entre uma marca e a seguinte o arco é reto o bastante para uma regra de três.
-    const stretch = walked[cursor + 1] - walked[cursor];
-    const into = stretch === 0 ? 0 : (target - walked[cursor]) / stretch;
-    return -span / 2 + step * (cursor + into);
-  });
-}
-
-/** Ângulo em graus a partir do topo, crescendo no sentido horário. */
-function onEllipse(degrees: number): Slot {
-  const radians = (degrees * Math.PI) / 180;
-  return {
-    x: RING_RX + RING_RX * Math.sin(radians),
-    y: RING_RY - RING_RY * Math.cos(radians),
-  };
-}
-
-/** As oito setas, começando na que aponta para a direita e girando com o relógio. */
-const ARROWS = ["→", "↘", "↓", "↙", "←", "↖", "↑", "↗"];
-
-/**
- * Para onde o arco segue neste ponto, arredondado para uma das oito setas. A
- * derivada da elipse em relação ao ângulo é (largura·cos, altura·sen) — e é aí
- * que a proporção da caixa entra: num arco largo e baixo o topo é quase
- * horizontal, e a seta certa lá é "→" e não "↗".
- */
-function tangent(degrees: number, direction: number, box: Box) {
-  const radians = (degrees * Math.PI) / 180;
-  const dx = box.w * RING_RX * Math.cos(radians) * direction;
-  const dy = box.h * RING_RY * Math.sin(radians) * direction;
-  const octant = Math.round(Math.atan2(dy, dx) / (Math.PI / 4));
-  return ARROWS[(octant + 8) % 8];
-}
-
-/** O lugar na elipse virando as duas custom properties que o CSS lê. */
-const at = ({ x, y }: Slot) => ({ "--x": `${x}%`, "--y": `${y}%` }) as CSSProperties;
-
 /** Os outros na ordem da vez, começando depois de você; você não vira assento. */
 function seatOrder(state: TableState, sessionId: string) {
   const index = state.players.findIndex((player) => player.id === sessionId);
@@ -831,7 +644,6 @@ function useTableSounds(state: TableState, sessionId: string) {
   }, [play, sessionId, state.centre, state.currentPlayerId, state.phase]);
 }
 
-
 /** O que a mesa está fazendo agora, em uma palavra, para o cabeçalho. */
 const STAGE_LABEL: Record<MatchStage, string> = {
   waiting_for_players: "esperando",
@@ -843,223 +655,3 @@ const STAGE_LABEL: Record<MatchStage, string> = {
   player_elimination: "eliminação",
   game_over: "fim",
 };
-
-/**
- * O tempo em que o Confirmar nasce surdo.
- *
- * Este painel aparece exatamente onde o placar da rodada acabou de sumir, e
- * quem declara primeiro o recebe no mesmo quadro em que a tela troca. No
- * telefone isso é uma armadilha: o toque que já estava a caminho — quem
- * cutuca a tela esperando o placar passar — cai num Confirmar que ainda
- * mostra o zero do começo, e a promessa mais cara do jogo sai sem ninguém ter
- * escolhido nada. Aconteceu em rodadas seguidas com quem declarava primeiro.
- *
- * O remédio é o botão não aceitar o que não foi decidido: quem realmente
- * escolheu um número leva muito mais que isto para apertar, e quem estava só
- * cutucando a tela não perde a rodada por causa disso.
- */
-const BID_TAP_GUARD = 450;
-
-/**
- * A promessa: quantas vazas você diz que vai fazer.
- *
- * Um contador em vez de uma botoeira: com dez cartas na mão a fileira de
- * botões enchia a barra inteira, e o número que você quer é quase sempre
- * vizinho do anterior. Deitado no desktop, em pé no telefone.
- *
- * Quem diz o que é possível é o SERVIDOR — `options` é a lista que ele mandou,
- * e a tela não recalcula nada. O contador anda por cima do número proibido em
- * vez de pulá-lo: pular faria o `+` parecer defeito. Ele avisa, e não deixa
- * confirmar.
- */
-function PromisePanel({
-  cards,
-  promised,
-  options,
-  onPromise,
-}: {
-  cards: number;
-  promised: number;
-  options: number[];
-  onPromise: (promise: number) => void;
-}) {
-  // Começa no primeiro número que dá para confirmar — zero, quase sempre.
-  const [value, setValue] = useState(() => (options.includes(0) ? 0 : (options[0] ?? 0)));
-  // Ver `BID_TAP_GUARD`: o botão só passa a ouvir depois que o painel assentou.
-  const [ready, setReady] = useState(false);
-  useEffect(() => {
-    const timer = setTimeout(() => setReady(true), BID_TAP_GUARD);
-    return () => clearTimeout(timer);
-  }, []);
-  /*
-   * O aviso é um balão que fica de pé enquanto o número recusado estiver no
-   * mostrador: ele não é um recado que passa, é o motivo de o Confirmar não
-   * funcionar, e sumir sozinho deixaria o botão morto sem explicação. Quem o
-   * apaga é trocar para um número que dá.
-   *
-   * O `seq` é o que faz o aviso saltar DE NOVO quando você insiste no
-   * Confirmar: sem uma chave nova o React reaproveita o nó, a animação não
-   * recomeça, e quem apertou não vê resposta nenhuma.
-   */
-  const [warning, setWarning] = useState<{ text: string; seq: number } | null>(null);
-  const seq = useRef(0);
-
-  const allowed = options.includes(value);
-
-  const warn = (n: number) => {
-    seq.current += 1;
-    setWarning({
-      text: `você é o último a declarar: a soma das promessas não pode dar ${cards}. Já foram ${promised}, então ${n} está fora.`,
-      seq: seq.current,
-    });
-  };
-
-  const step = (delta: number) => {
-    const next = Math.min(cards, Math.max(0, value + delta));
-    if (next === value) return;
-    setValue(next);
-    if (options.includes(next)) setWarning(null);
-    else warn(next);
-  };
-
-  const confirm = () => {
-    if (allowed) onPromise(value);
-    else warn(value);
-  };
-
-  return (
-    <div className="relative">
-      {/* Fora do quadro e por cima dele: o aviso não pode empurrar os botões
-          para baixo no meio de uma escolha. */}
-      {warning && (
-        <div
-          key={warning.seq}
-          role="status"
-          className="fdp-warn px-slab pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 w-max max-w-[min(22rem,80vw)] -translate-x-1/2 px-3 py-2"
-        >
-          <p className="px-label text-center" style={{ color: "var(--mark)" }}>
-            ⚠ {warning.text}
-          </p>
-        </div>
-      )}
-
-      <div className="px-slab flex flex-col items-center gap-3 px-4 py-3 md:flex-row md:gap-4">
-        <p className="px-label text-center md:max-w-32 md:text-left">
-          Sua promessa · quantas mãos você faz?
-        </p>
-
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            className="px-btn"
-            onClick={() => step(-1)}
-            disabled={value === 0}
-            aria-label="uma mão a menos"
-          >
-            −
-          </button>
-          <span
-            className="fdp-bid"
-            aria-live="polite"
-            style={{ color: allowed ? "var(--mark)" : "var(--ink-red)" }}
-          >
-            {value}
-          </span>
-          <button
-            type="button"
-            className="px-btn"
-            onClick={() => step(1)}
-            disabled={value === cards}
-            aria-label="uma mão a mais"
-          >
-            +
-          </button>
-        </div>
-
-        <button
-          type="button"
-          className={`px-btn w-full md:w-auto ${allowed ? "px-btn-primary" : ""}`}
-          disabled={!ready}
-          onClick={confirm}
-        >
-          Confirmar
-        </button>
-      </div>
-    </div>
-  );
-}
-
-/**
- * O placar da rodada. Uma linha por jogador: o que prometeu, o que fez, o que
- * isso custou e o que sobrou. A coluna que importa é a do meio — é a distância
- * entre as duas primeiras que vira pontos perdidos.
- */
-function RoundScore({
-  results,
-  players,
-  you,
-  cards,
-  round,
-}: {
-  results: RoundResult[];
-  players: TableState["players"];
-  you: string;
-  cards: number;
-  round: number;
-}) {
-  const name = (id: string) => players.find((player) => player.id === id)?.name ?? "—";
-
-  return (
-    <div className="fixed inset-0 z-40 grid place-content-center bg-black/70 p-4">
-      <div className="px-slab flex flex-col gap-3 p-6">
-        <p className="px-label text-center">
-          Rodada {round} · {cards} carta{cards === 1 ? "" : "s"}
-        </p>
-        <table className="fdp-score-table text-sm">
-          <thead>
-            <tr className="px-label">
-              <th className="text-left">jogador</th>
-              <th>prometeu</th>
-              <th>fez</th>
-              <th>perdeu</th>
-              <th>restam</th>
-            </tr>
-          </thead>
-          <tbody>
-            {results.map((result) => (
-              <tr key={result.playerId} className={result.eliminated ? "is-out" : ""}>
-                <td
-                  className="text-left"
-                  style={{
-                    color: result.playerId === you ? "var(--mark)" : "var(--paper-hi)",
-                  }}
-                >
-                  {name(result.playerId)}
-                  {result.playerId === you && " (você)"}
-                </td>
-                <td>{result.promise}</td>
-                <td>{result.tricks}</td>
-                <td style={{ color: result.lost === 0 ? "var(--live)" : "var(--ink-red)" }}>
-                  {result.lost === 0 ? "—" : `-${result.lost}`}
-                </td>
-                {/* Quem passou do zero aparece com o saldo negativo: é ele que
-                    diz quem chegou mais perto quando a rodada derruba vários
-                    de uma vez, e "0 e 0" não diria nada. */}
-                <td>
-                  <b
-                    style={{
-                      color: result.overshoot < 0 ? "var(--ink-red)" : "var(--paper-hi)",
-                    }}
-                  >
-                    {result.overshoot < 0 ? result.overshoot : result.points}
-                  </b>
-                  {result.eliminated && <span className="px-label"> fora</span>}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}

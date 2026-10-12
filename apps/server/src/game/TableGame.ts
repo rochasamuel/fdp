@@ -3,19 +3,16 @@ import {
   ELIMINATION_LINGER,
   MATCH_STARTED,
   MIN_PLAYERS,
-  PORCAO,
   PORCAO_ARMED,
-  ZAP,
   ROUND_LINGER,
   STARTING_POINTS,
   TRICK_LINGER,
   allowedPromises,
   cardLabel,
-  cardPower,
-  isSameCard,
   isSpecialCard,
   nextHandSize,
   pointsLost,
+  powerInTrick,
   type Card,
   type FxEvent,
   type GamePhase,
@@ -204,6 +201,11 @@ export class TableGame {
       overshoot: this.startingPoints,
     });
     this.pushLog(`${name} entrou na sala.`);
+  }
+
+  /** O jogador desta sessão, se ele ainda estiver na mesa. */
+  player(id: string): GamePlayer | undefined {
+    return this.players.find((player) => player.id === id);
   }
 
   /** A cadeira de quem tem esta chave, se houver uma. */
@@ -451,7 +453,7 @@ export class TableGame {
     this.lastTrickWinnerId = winner?.playerId ?? "";
 
     if (winner) {
-      const player = this.players.find((p) => p.id === winner.playerId);
+      const player = this.player(winner.playerId);
       if (player) player.tricks++;
       this.pushLog(`${player?.name ?? "Alguém"} levou a mão ${this.trickNumber}.`);
     } else {
@@ -507,30 +509,14 @@ export class TableGame {
     );
   }
 
-  /** Uma carta que o cangar não anula. */
+  /** Uma carta que o cangar não anula: uma manilha, ou o porcão armado. */
   private immune(card: Card): boolean {
-    return isSpecialCard(card) || this.porcaoArmed(card);
+    return isSpecialCard(card) || this.strength(card) === PORCAO_ARMED;
   }
 
-  /**
-   * A força desta carta NESTA vaza.
-   *
-   * Só o porcão faz a força depender da mesa, e é o que a regra diz: o 4♠ mata
-   * o 4♣ e exclusivamente ele. Com o zap baixado, o porcão passa a ser a carta
-   * mais forte que existe; sem o zap, ele é a mais fraca do baralho — abaixo do
-   * 4 de ouros, que é a menor carta comum.
-   */
+  /** A força desta carta NESTA vaza. Ver `powerInTrick` no `@fdp/shared`. */
   private strength(card: Card): number {
-    if (!this.rules.porcao || !isSameCard(card, PORCAO)) return cardPower(card);
-    return this.zapOnTable() ? PORCAO_ARMED : 0;
-  }
-
-  private porcaoArmed(card: Card): boolean {
-    return this.rules.porcao && isSameCard(card, PORCAO) && this.zapOnTable();
-  }
-
-  private zapOnTable(): boolean {
-    return this.trick.some((play) => isSameCard(play.card, ZAP));
+    return powerInTrick(card, this.centre, this.rules.porcao);
   }
 
   /**
@@ -609,7 +595,7 @@ export class TableGame {
   private eliminate() {
     const doomed = this.results.filter((result) => result.eliminated);
     for (const result of doomed) {
-      const player = this.players.find((p) => p.id === result.playerId);
+      const player = this.player(result.playerId);
       if (!player) continue;
       player.eliminated = true;
       player.hand = [];
@@ -658,7 +644,7 @@ export class TableGame {
      */
     const tied = this.results
       .filter((result) => result.eliminated)
-      .map((result) => this.players.find((player) => player.id === result.playerId))
+      .map((result) => this.player(result.playerId))
       .filter((player): player is GamePlayer => player !== undefined);
 
     if (tied.length === 0) {
@@ -697,7 +683,7 @@ export class TableGame {
    */
   playableCards(playerId: string): Card[] {
     if (this.stage !== "playing_trick" || this.currentPlayer?.id !== playerId) return [];
-    return this.players.find((p) => p.id === playerId)?.hand ?? [];
+    return this.player(playerId)?.hand ?? [];
   }
 
   /**
@@ -707,7 +693,7 @@ export class TableGame {
    * não sai do servidor. Fora dela, a mão inteira.
    */
   visibleHand(playerId: string): { cards: Card[]; hiddenIds: string[] } {
-    const player = this.players.find((p) => p.id === playerId);
+    const player = this.player(playerId);
     if (!player) return { cards: [], hiddenIds: [] };
     if (!this.blind || this.phase !== "playing") return { cards: player.hand, hiddenIds: [] };
     return { cards: [], hiddenIds: player.hand.map((card) => card.id) };
@@ -724,7 +710,7 @@ export class TableGame {
    */
   peekedHands(playerId: string): PeekedHand[] {
     if (this.phase !== "playing") return [];
-    const spectating = this.players.find((p) => p.id === playerId)?.eliminated ?? false;
+    const spectating = this.player(playerId)?.eliminated ?? false;
     if (!this.blind && !spectating) return [];
     return this.active
       .filter((player) => player.id !== playerId && player.hand.length > 0)

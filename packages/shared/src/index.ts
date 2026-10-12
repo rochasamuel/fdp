@@ -179,6 +179,25 @@ export function cardPower(card: Pick<Card, "suit" | "rank">): number {
 /** A força que o porcão tem quando o zap está na mesa: acima de tudo. */
 export const PORCAO_ARMED = cardPower(ZAP) + 1;
 
+/**
+ * A força de uma carta DENTRO de uma vaza — a única que depende da mesa.
+ *
+ * Só o porcão muda: com a regra ligada, o 4♠ mata o 4♣ e exclusivamente ele.
+ * Com o zap baixado ele é a carta mais forte que existe; sem o zap, a mais
+ * fraca do baralho, abaixo do 4 de ouros. Toda outra carta é a da tabela.
+ *
+ * Mora aqui porque os dois lados perguntam a mesma coisa: o servidor para
+ * decidir quem leva, a tela para saber qual carta pousa por cima da pilha.
+ */
+export function powerInTrick(
+  card: Pick<Card, "suit" | "rank">,
+  trick: Pick<Card, "suit" | "rank">[],
+  porcao: boolean,
+): number {
+  if (!porcao || !isSameCard(card, PORCAO)) return cardPower(card);
+  return trick.some((other) => isSameCard(other, ZAP)) ? PORCAO_ARMED : 0;
+}
+
 /** É uma das cinco que fogem do próprio rank? A tela as destaca. */
 export const isSpecialCard = (card: Pick<Card, "suit" | "rank">) =>
   `${card.suit}-${card.rank}` in SPECIAL_POWER;

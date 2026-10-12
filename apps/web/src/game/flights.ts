@@ -94,11 +94,6 @@ function center(key: AnchorKey, rot = 0, scale = 1): Pose | null {
   return poseOf(box, rot, scale);
 }
 
-/**
- * O ângulo com que um slot do leque está inclinado, lido da matriz que o
- * navegador realmente aplicou. Sem isto a carta pousaria na horizontal e
- * saltaria para a inclinação do leque no quadro seguinte.
- */
 /** Inclinação e ampliação que o navegador de fato aplicou a um elemento. */
 function transformOf(element: Element) {
   const { transform } = getComputedStyle(element);
@@ -107,6 +102,11 @@ function transformOf(element: Element) {
   return { rot: (Math.atan2(b, a) * 180) / Math.PI, scale: Math.hypot(a, b) || 1 };
 }
 
+/**
+ * O ângulo com que um slot do leque está inclinado, lido da matriz que o
+ * navegador realmente aplicou. Sem isto a carta pousaria na horizontal e
+ * saltaria para a inclinação do leque no quadro seguinte.
+ */
 const angleOf = (element: Element) => transformOf(element).rot;
 
 /**
@@ -211,6 +211,15 @@ export const useFlightStore = create<FlightsStore>(() => ({
 let nextId = 1;
 const timers = new Set<ReturnType<typeof setTimeout>>();
 
+/** Um relógio que `clearFlights` sabe cancelar. */
+function later(run: () => void, ms: number) {
+  const timer = setTimeout(() => {
+    timers.delete(timer);
+    run();
+  }, ms);
+  timers.add(timer);
+}
+
 /** Até quando o monte de compra está ocupado, para o que vem depois esperar a vez. */
 let busyUntil = 0;
 
@@ -282,14 +291,12 @@ function launch({ from, to, width, art, delay, holds, settle = 0 }: LaunchOption
   hold(holds, true);
   useFlightStore.setState((state) => ({ flights: [...state.flights, flight] }));
 
-  const timer = setTimeout(() => {
-    timers.delete(timer);
+  later(() => {
     hold(holds, false);
     useFlightStore.setState((state) => ({
       flights: state.flights.filter((item) => item.id !== id),
     }));
   }, delay + ms + settle);
-  timers.add(timer);
 
   return delay + ms;
 }
@@ -357,14 +364,7 @@ function dealBeat(cards: number) {
   // um a cada duas na de vinte e seis — e o reparto dura o mesmo dos dois lados.
   const every = beats > 0 ? cards / beats : 0;
   for (let i = 0; i < beats; i++) {
-    const timer = setTimeout(
-      () => {
-        timers.delete(timer);
-        playSound("play", DEAL_VOLUME);
-      },
-      Math.round(i * every) * DEAL_STAGGER,
-    );
-    timers.add(timer);
+    later(() => playSound("play", DEAL_VOLUME), Math.round(i * every) * DEAL_STAGGER);
   }
 }
 
@@ -500,13 +500,11 @@ export function flyPlay(
  */
 export function markLeaving(cardId: string) {
   useFlightStore.setState({ leaving: cardId });
-  const timer = setTimeout(() => {
-    timers.delete(timer);
-    useFlightStore.setState((state) =>
-      state.leaving === cardId ? { leaving: null } : state,
-    );
-  }, 900);
-  timers.add(timer);
+  later(
+    () =>
+      useFlightStore.setState((state) => (state.leaving === cardId ? { leaving: null } : state)),
+    900,
+  );
 }
 
 /** Cancela tudo o que está no ar e devolve as cartas seguradas. */

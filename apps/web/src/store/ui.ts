@@ -2,7 +2,13 @@ import { create } from "zustand";
 import { prefersReducedMotion, watchReducedMotion } from "../lib/motion";
 import { backUrl, type Back } from "../lib/cards";
 import { applyFelt, type Felt } from "../lib/felt";
-import { loadPlayerName, loadPrefs, savePrefs, type SeatLayout } from "../lib/session";
+import {
+  loadPlayerName,
+  loadPrefs,
+  savePrefs,
+  type SeatLayout,
+  type StoredPrefs,
+} from "../lib/session";
 
 const prefs = loadPrefs();
 
@@ -33,38 +39,35 @@ type UiStore = {
   setConfirmPlay: (confirm: boolean) => void;
 };
 
-export const useUi = create<UiStore>((set, get) => ({
-  playerName: loadPlayerName(),
-  soundEnabled: true,
-  seatLayout: prefs.seatLayout,
-  lowMotion: prefs.lowMotion,
-  felt: prefs.felt,
-  back: prefs.back,
-  confirmPlay: prefs.confirmPlay,
-  setPlayerName: (playerName) => set({ playerName }),
-  toggleSound: () => set((state) => ({ soundEnabled: !state.soundEnabled })),
-  setSeatLayout: (seatLayout) => {
-    set({ seatLayout });
+export const useUi = create<UiStore>((set, get) => {
+  /** Muda uma preferência e a guarda para a próxima visita. */
+  const setPref = (patch: Partial<StoredPrefs>) => {
+    set(patch);
     persist(get());
-  },
-  setLowMotion: (lowMotion) => {
-    set({ lowMotion });
-    persist(get());
-  },
-  setFelt: (felt) => {
-    set({ felt });
-    applyFelt(felt);
-    persist(get());
-  },
-  setBack: (back) => {
-    set({ back });
-    persist(get());
-  },
-  setConfirmPlay: (confirmPlay) => {
-    set({ confirmPlay });
-    persist(get());
-  },
-}));
+  };
+
+  return {
+    playerName: loadPlayerName(),
+    soundEnabled: true,
+    seatLayout: prefs.seatLayout,
+    lowMotion: prefs.lowMotion,
+    felt: prefs.felt,
+    back: prefs.back,
+    confirmPlay: prefs.confirmPlay,
+    setPlayerName: (playerName) => set({ playerName }),
+    toggleSound: () => set((state) => ({ soundEnabled: !state.soundEnabled })),
+    setSeatLayout: (seatLayout) => setPref({ seatLayout }),
+    setLowMotion: (lowMotion) => setPref({ lowMotion }),
+    // O pano, além de guardado, repinta a mesa na hora.
+    setFelt: (felt) => {
+      set({ felt });
+      applyFelt(felt);
+      persist(get());
+    },
+    setBack: (back) => setPref({ back }),
+    setConfirmPlay: (confirmPlay) => setPref({ confirmPlay }),
+  };
+});
 
 /**
  * O que do store sobrevive ao fechar a aba. Escolhido campo a campo, e não por
@@ -93,12 +96,6 @@ export const isLowMotion = () => useUi.getState().lowMotion || prefersReducedMot
 export const currentBackUrl = () => backUrl(useUi.getState().back);
 
 /**
- * Uma classe no <html> e o CSS inteiro segue. É por aqui que a chave da mesa
- * alcança as animações que moram na folha de estilo: elas ficam sob
- * `.motion-off`, e não sob a media query, porque a media query só ouve o
- * sistema. Ver "movimento reduzido" no index.css.
- */
-/**
  * O pano guardado, antes do primeiro render. É um atributo no <html> e não uma
  * classe porque são cinco valores e não um liga-desliga: ver `--felt` no
  * index.css.
@@ -107,6 +104,12 @@ export function syncFelt() {
   applyFelt(useUi.getState().felt);
 }
 
+/**
+ * Uma classe no <html> e o CSS inteiro segue. É por aqui que a chave da mesa
+ * alcança as animações que moram na folha de estilo: elas ficam sob
+ * `.motion-off`, e não sob a media query, porque a media query só ouve o
+ * sistema. Ver "movimento reduzido" no index.css.
+ */
 export function syncMotionClass() {
   const apply = () => document.documentElement.classList.toggle("motion-off", isLowMotion());
   apply();

@@ -17,6 +17,7 @@ import type {
 } from "@fdp/shared";
 import { MATCH_STARTED, RECONNECT_TIMEOUT } from "@fdp/shared";
 import { client } from "../lib/colyseus";
+import { createEmitter } from "../lib/emitter";
 import { takePendingRoom } from "../lib/pendingRoom";
 import {
   clearSession,
@@ -93,8 +94,8 @@ export type RoomActions = {
 
 export function useRoomConnection(code: string): RoomConnection {
   const roomRef = useRef<Room | null>(null);
-  const fxHandlers = useRef(new Set<(events: FxEvent[]) => void>());
-  const emoteHandlers = useRef(new Set<(event: EmoteEvent) => void>());
+  const [fx] = useState(() => createEmitter<FxEvent[]>());
+  const [emotes] = useState(() => createEmitter<EmoteEvent>());
   /** Uma tentativa de cada vez, e nenhuma depois que a tela sai. */
   const busy = useRef(false);
   const alive = useRef(true);
@@ -145,12 +146,8 @@ export function useRoomConnection(code: string): RoomConnection {
       });
       room.onMessage("hand", (message: HandMessage) => setHand(message));
       room.onMessage("error", (message: ErrorMessage) => setNotice(message.message));
-      room.onMessage("fx", (events: FxMessage) => {
-        for (const handler of fxHandlers.current) handler(events);
-      });
-      room.onMessage("emote", (event: EmoteEvent) => {
-        for (const handler of emoteHandlers.current) handler(event);
-      });
+      room.onMessage("fx", (events: FxMessage) => fx.emit(events));
+      room.onMessage("emote", (event: EmoteEvent) => emotes.emit(event));
       room.onDrop(() => setDropped(true));
       room.onReconnect(() => {
         setDropped(false);
@@ -163,7 +160,7 @@ export function useRoomConnection(code: string): RoomConnection {
         setHand(EMPTY_HAND);
       });
     },
-    [code],
+    [code, emotes, fx],
   );
 
   const join = useCallback(
@@ -368,18 +365,6 @@ export function useRoomConnection(code: string): RoomConnection {
     [],
   );
 
-  const onFx = useCallback((handler: (events: FxEvent[]) => void) => {
-    const handlers = fxHandlers.current;
-    handlers.add(handler);
-    return () => handlers.delete(handler);
-  }, []);
-
-  const onEmote = useCallback((handler: (event: EmoteEvent) => void) => {
-    const handlers = emoteHandlers.current;
-    handlers.add(handler);
-    return () => handlers.delete(handler);
-  }, []);
-
   const playableIds = useMemo(() => new Set(hand.playableIds), [hand]);
 
   return {
@@ -401,8 +386,8 @@ export function useRoomConnection(code: string): RoomConnection {
     retry,
     leave,
     actions,
-    onFx,
-    onEmote,
+    onFx: fx.on,
+    onEmote: emotes.on,
   };
 }
 

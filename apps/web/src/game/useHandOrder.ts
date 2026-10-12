@@ -15,20 +15,20 @@ import { moveCard, powerOrder, reconcile, type SortDirection } from "./handOrder
  */
 export function useHandOrder(entries: HandEntry[]) {
   const [chosen, setChosen] = useState<string[]>([]);
+  const ids = useMemo(() => entries.map((entry) => entry.id), [entries]);
 
   const order = useMemo(
-    () => (chosen.length ? reconcile(chosen, entries.map((entry) => entry.id)) : chosen),
-    [chosen, entries],
+    () => (chosen.length ? reconcile(chosen, ids) : chosen),
+    [chosen, ids],
   );
 
   /** A carta solta em cima de outra toma o lugar dela. */
   const move = useCallback(
     (id: string, targetId: string) =>
-      setChosen((previous) => {
-        const current = previous.length ? reconcile(previous, entries.map((e) => e.id)) : entries.map((e) => e.id);
-        return moveCard(current, id, targetId);
-      }),
-    [entries],
+      setChosen((previous) =>
+        moveCard(previous.length ? reconcile(previous, ids) : ids, id, targetId),
+      ),
+    [ids],
   );
 
   /** Ordenar é uma ação, e não um modo: o que vier depois entra no fim. */
